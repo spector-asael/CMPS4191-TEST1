@@ -1,0 +1,1 @@
+export GATEKEEPER_DB_DSN=postgres://gatekeeper:password@localhost:5432/gatekeeper?sslmode=disable

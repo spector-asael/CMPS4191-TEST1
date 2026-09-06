@@ -1,0 +1,28 @@
+curl -i -X POST http://localhost:4000/consumers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Dalwin Jones",
+    "email": "dalwin@example.com"
+  }'
+
+
+# Trigger validation failure (empty name)
+curl -i -X POST http://localhost:4000/consumers \
+  -H "Content-Type: application/json" \
+  -d '{"name": "", "email": "dalwin@example.com"}'
+
+# Trigger duplicate email
+# Run the first command twice
+curl -i -X POST http://localhost:4000/consumers \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Dalwin Jones", "email": "dalwin@example.com"}'
+
+# Trigger bad JSON
+curl -i -X POST http://localhost:4000/consumers \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Dalwin Jones", "email":}'
+
+# See Location
+curl -i -X POST http://localhost:4000/consumers \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Dalwin Jones", "email": "dalwin@example.com"}'

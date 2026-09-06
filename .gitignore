@@ -1,0 +1,22 @@
+# Environment & secrets
+.env
+.envrc
+
+# Compiled binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test & build artifacts
+*.test
+*.out
+
+# Vendor
+vendor/
+
+# OS noise
+.DS_Store
+Thumbs.db
