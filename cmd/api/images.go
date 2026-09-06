@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -106,6 +107,32 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := app.writeJSON(w, http.StatusAccepted, response, headers); err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) getJobHandler(w http.ResponseWriter, r *http.Request) {
+	job, err := app.models.Jobs.GetByPublicID(r.PathValue("id"))
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundResponse(w, r)
+			return
+		}
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	response := envelope{
+		"id":            job.PublicID,
+		"status":        job.Status,
+		"variants":      job.Variants,
+		"queued_at":     job.QueuedAt,
+		"started_at":    job.StartedAt,
+		"completed_at":  job.CompletedAt,
+		"error_message": job.ErrorMessage,
+	}
+
+	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
 }

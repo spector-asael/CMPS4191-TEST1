@@ -2,6 +2,9 @@
 .env
 .envrc
 
+# File storage 
+uploads/
+
 # Compiled binaries
 bin/
 *.exe

@@ -8,6 +8,9 @@ import (
 )
 
 // Image represents the metadata for an uploaded raw image file (Section 11)[cite: 1].
+
+var ErrRecordNotFound = errors.New("no record found")
+
 type Image struct {
 	ID               int64     `json:"id"`
 	OriginalFilename string    `json:"original_filename"`
