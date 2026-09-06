@@ -18,16 +18,10 @@ type Variant struct {
 	URL    string `json:"url"`
 }
 
-type ReportPayload struct {
-	From time.Time `json:"from"`
-	To   time.Time `json:"to"`
-}
-
 type Job struct {
 	ID           string          `json:"-"`
 	PublicID     string          `json:"id"`
 	ImageID      *int64          `json:"image_id,omitempty"`
-	ConsumerID   *string         `json:"consumer_id,omitempty"`
 	JobType      string          `json:"job_type,omitempty"`
 	Status       string          `json:"status"`
 	Payload      json.RawMessage `json:"payload,omitempty"`
@@ -46,14 +40,14 @@ type JobModel struct {
 // Insert creates a durable job record in PostgreSQL (JOB-01)
 func (m JobModel) Insert(job *Job) error {
 	query := `
-		INSERT INTO jobs (image_id, consumer_id, job_type, payload, status)
-		VALUES ($1, $2, $3, $4, 'queued')
+		INSERT INTO jobs (image_id, job_type, payload, status)
+		VALUES ($1, $2, COALESCE($3, '{}'::jsonb), 'queued')
 		RETURNING id, public_id, status, created_at`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, job.ImageID, job.ConsumerID, job.JobType, job.Payload).Scan(
+	err := m.DB.QueryRowContext(ctx, query, job.ImageID, job.JobType, job.Payload).Scan(
 		&job.ID, &job.PublicID, &job.Status, &job.QueuedAt,
 	)
 	if err != nil {
@@ -66,10 +60,46 @@ func (m JobModel) Insert(job *Job) error {
 	return nil
 }
 
+// ClaimNext claims the next queued job for a specific jobType using FOR UPDATE SKIP LOCKED (WRK-02)
+func (m JobModel) ClaimNext(ctx context.Context, jobType string) (*Job, error) {
+	tx, err := m.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	query := `
+		SELECT id, public_id, image_id, job_type, COALESCE(payload, '{}'::jsonb)
+		FROM jobs
+		WHERE status = 'queued' AND job_type = $1
+		ORDER BY created_at
+		FOR UPDATE SKIP LOCKED
+		LIMIT 1`
+
+	var job Job
+	if err := tx.QueryRowContext(ctx, query, jobType).Scan(
+		&job.ID, &job.PublicID, &job.ImageID, &job.JobType, &job.Payload,
+	); err != nil {
+		return nil, err
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE jobs SET status = 'processing', started_at = now() WHERE id = $1`, job.ID); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	job.Status = "processing"
+	return &job, nil
+}
+
 // GetByPublicID returns current status and unmarshals variant metadata if completed (Section 10)
 func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 	query := `
-		SELECT id, public_id, image_id, consumer_id, job_type, status,
+		SELECT id, public_id, image_id, job_type, status,
 		       COALESCE(payload, 'null'::jsonb),
 		       COALESCE(result, 'null'::jsonb),
 		       error_message, started_at, completed_at, created_at
@@ -80,7 +110,7 @@ func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 
 	var job Job
 	err := m.DB.QueryRowContext(ctx, query, publicID).Scan(
-		&job.ID, &job.PublicID, &job.ImageID, &job.ConsumerID, &job.JobType, &job.Status,
+		&job.ID, &job.PublicID, &job.ImageID, &job.JobType, &job.Status,
 		&job.Payload, &job.Result, &job.ErrorMessage, &job.StartedAt, &job.CompletedAt, &job.QueuedAt,
 	)
 	if err != nil {
@@ -100,42 +130,6 @@ func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 		}
 	}
 
-	return &job, nil
-}
-
-// ClaimNext claims the next queued job for a specific jobType using FOR UPDATE SKIP LOCKED (WRK-02)
-func (m JobModel) ClaimNext(ctx context.Context, jobType string) (*Job, error) {
-	tx, err := m.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	query := `
-		SELECT id, public_id, image_id, consumer_id, job_type, payload
-		FROM jobs
-		WHERE status = 'queued' AND job_type = $1
-		ORDER BY created_at
-		FOR UPDATE SKIP LOCKED
-		LIMIT 1`
-
-	var job Job
-	if err := tx.QueryRowContext(ctx, query, jobType).Scan(
-		&job.ID, &job.PublicID, &job.ImageID, &job.ConsumerID, &job.JobType, &job.Payload,
-	); err != nil {
-		return nil, err
-	}
-
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE jobs SET status = 'processing', started_at = now() WHERE id = $1`, job.ID); err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-
-	job.Status = "processing"
 	return &job, nil
 }
 
