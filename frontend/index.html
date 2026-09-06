@@ -28,67 +28,67 @@
     <!-- INNER DIV: 6-Column CSS Grid -->
     <div class="inner-grid">
       
-      <!-- TOP LEFT CARD: Upload (Spans 3 Columns, Rows 1-2)[cite: 1] -->
+      <!-- TOP LEFT CARD: Upload (Spans 3 Columns, Rows 1-2)    -->
       <div class="grid-card upload-card">
         <h3>Upload image</h3>
         
         <div class="preview-box flex-container">
           <img id="preview-img" src="" alt="Preview" class="hidden" />
           <div class="file-info flex-container">
-            <span id="file-name">No file selected</span>[cite: 1]
-            <span id="file-meta"></span>[cite: 1]
-            <label for="file-input" class="btn-secondary">Choose image</label>[cite: 1]
-            <input type="file" id="file-input" accept="image/jpeg, image/png" hidden />[cite: 1]
+            <span id="file-name">No file selected</span>   
+            <span id="file-meta"></span>   
+            <label for="file-input" class="btn-secondary">Choose image</label>   
+            <input type="file" id="file-input" accept="image/jpeg, image/png" hidden />   
           </div>
         </div>
 
-        <button id="process-btn" class="btn-primary" disabled>Process image</button>[cite: 1]
+        <button id="process-btn" class="btn-primary" disabled>Process image</button>   
       </div>
 
-      <!-- TOP RIGHT CARD: Job Details & Timeline (Spans 3 Columns, Rows 1-2)[cite: 1] -->
+      <!-- TOP RIGHT CARD: Job Details & Timeline (Spans 3 Columns, Rows 1-2)    -->
       <div class="grid-card job-card">
         <div class="card-header flex-container">
           <div>
             <h3>Processing job</h3>
             <span class="label">Job ID</span>
-            <h4 id="job-id">#--</h4>[cite: 1]
+            <h4 id="job-id">#--</h4>   
           </div>
-          <span id="job-status" class="badge">No active job</span>[cite: 1]
+          <span id="job-status" class="badge">No active job</span>   
         </div>
 
         <ul class="timeline flex-container">
           <li id="step-upload" class="step-item flex-container">
             <span class="step-icon">✓</span>
-            <div><strong>Upload accepted</strong><small id="time-upload">--</small></div>[cite: 1]
+            <div><strong>Upload accepted</strong><small id="time-upload">--</small></div>   
           </li>
           <li id="step-stored" class="step-item flex-container">
             <span class="step-icon">✓</span>
-            <div><strong>Original stored</strong><small id="time-stored">--</small></div>[cite: 1]
+            <div><strong>Original stored</strong><small id="time-stored">--</small></div>   
           </li>
           <li id="step-variants" class="step-item flex-container">
             <span class="step-icon">⚙</span>
-            <div><strong>Generating variants</strong><small id="time-variants">--</small></div>[cite: 1]
+            <div><strong>Generating variants</strong><small id="time-variants">--</small></div>   
           </li>
           <li id="step-complete" class="step-item flex-container">
             <span class="step-icon">○</span>
-            <div><strong>Complete</strong><small id="time-complete">Pending</small></div>[cite: 1]
+            <div><strong>Complete</strong><small id="time-complete">Pending</small></div>   
           </li>
         </ul>
 
-        <!-- Retry Container for Observation Errors[cite: 1] -->
+        <!-- Retry Container for Observation Errors    -->
         <div id="try-again-container" class="flex-container" style="display: none;">
-          <span>Unable to check status. The job may still be running.</span>[cite: 1]
-          <button id="try-again-btn" class="btn-secondary">Try again</button>[cite: 1]
+          <span>Unable to check status. The job may still be running.</span>   
+          <button id="try-again-btn" class="btn-secondary">Try again</button>   
         </div>
       </div>
 
-      <!-- BOTTOM PANEL: Variant Output Grid (Spans All 6 Columns, Row 3)[cite: 1] -->
+      <!-- BOTTOM PANEL: Variant Output Grid (Spans All 6 Columns, Row 3)    -->
       <div class="grid-card results-card">
         <h3>Generated images</h3>
         
-        <!-- Nested Grid for 3 Variant Items (2 Columns Each)[cite: 1] -->
+        <!-- Nested Grid for 3 Variant Items (2 Columns Each)    -->
         <div id="variants-container" class="variants-grid">
-          <p class="empty-state">No images generated yet.</p>[cite: 1]
+          <p class="empty-state">No images generated yet.</p>   
         </div>
       </div>
 
