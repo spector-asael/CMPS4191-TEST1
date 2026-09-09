@@ -44,9 +44,9 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 
 	mimeType := http.DetectContentType(buf)
 	switch mimeType {
-	case "image/jpeg", "image/png", "image/gif", "image/webp":
+	case "image/jpeg", "image/png":
 	default:
-		app.badRequestResponse(w, r, fmt.Errorf("unsupported file type: %s", mimeType))
+		app.badRequestResponse(w, r, fmt.Errorf("unsupported file type: %s (only JPEG and PNG are allowed)", mimeType))
 		return
 	}
 

@@ -1,4 +1,5 @@
 import { emitter } from './modules/event-emitter.js';
+import { API_BASE_URL } from './modules/data-service.js';
 
 emitter.on('stateChanged', (state) => {
   // 1. Target elements from index.html
@@ -67,7 +68,7 @@ emitter.on('stateChanged', (state) => {
       meta.textContent = `${variant.width} × ${variant.height}`;
 
       const img = document.createElement('img');
-      img.src = variant.url;
+      img.src = variant.url.startsWith('http') ? variant.url : `${API_BASE_URL}${variant.url}`;
       img.alt = variant.name;
 
       card.append(img, title, meta);

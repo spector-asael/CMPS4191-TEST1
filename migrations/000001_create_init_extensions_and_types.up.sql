@@ -2,8 +2,8 @@
 
 BEGIN;
 
-CREATE TYPE consumer_status AS ENUM ('active', 'suspended', 'terminated');
-CREATE TYPE key_status     AS ENUM ('active', 'rotating', 'revoked');
-CREATE TYPE job_status     AS ENUM ('queued', 'processing', 'completed', 'failed', 'cancelled');
+-- job_status tracks the lifecycle of an asynchronous image processing job.
+-- JOB-02 & DATA-04: Use exactly queued, processing, completed, and failed for Version 1.
+CREATE TYPE job_status AS ENUM ('queued', 'processing', 'completed', 'failed');
 
 COMMIT;

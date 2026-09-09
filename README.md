@@ -1,95 +1,125 @@
-# GateKeeper: asynchronous report API
+# ImageLab: Asynchronous Image Processing API
 
-This complete starter repository accompanies the `202 Accepted + Job + Worker`
-empirical lab. It preserves the synchronous lab's request and report, while
-changing the contract and where the simulated work occurs.
+ImageLab is an asynchronous image-processing web application built with Go, PostgreSQL, and a vanilla JavaScript frontend.
 
-**Reasoning model:** Requirement → Contract → Implementation → Measurement → Evaluation.
+Work is accepted durably via `202 Accepted`, processed independently by an in-process background worker, and observed by the browser through automatic short polling.
 
-## Requirement and contract
+---
 
-Accept valid work promptly, continue processing independently, and expose the
-eventual outcome through an observable job.
+## Core Architecture
 
-```http
-POST /v1/reports
-HTTP/1.1 202 Accepted
-Location: /v1/jobs/{public-id}
+1. **Browser (Client)**: Selects, previews locally, submits the image once (with double-click protection), and polls for job status.
+2. **Go HTTP API**: Validates request and MIME types, stores original image files using server-controlled names, creates durable job records in PostgreSQL, and immediately acknowledges receipt with `202 Accepted`.
+3. **PostgreSQL**: Authoritative store for images, job lifecycles (`queued` → `processing` → `completed` / `failed`), timestamps, and variant metadata.
+4. **Background Worker**: Independently claims queued jobs using `FOR UPDATE SKIP LOCKED`, generates image variants, persists variant metadata, and updates job completion.
+5. **Local Filesystem**: Stores original uploaded images under `./uploads/` and generated variants.
 
-{"job_id":"...","status":"queued","status_url":"/v1/jobs/..."}
-```
+---
 
-Later, `GET /v1/jobs/{public-id}` returns the job's current state. A completed
-job includes the same consumer-activity report returned by the synchronous API.
+## Prerequisites & Setup
 
-`202 Accepted` acknowledges accepted work; it does not promise that work has
-finished or will succeed. This remains an asynchronously executed command API.
+### Requirements
+- **Go** (1.23+ / 1.25)
+- **PostgreSQL** (14+)
+- **golang-migrate CLI**
+- **Node.js** (for `npx http-server` frontend hosting)
 
-## Prerequisites and setup
-
-Use the Go version in `go.mod`, PostgreSQL, `psql`, and the `migrate` CLI. The
-original migrations require `citext`, `uuidv7()`, and `uuidv4()`.
-
+### 1. Environment Configuration
+Copy the example environment file and set your PostgreSQL DSN:
 ```bash
 cp .envrc.example .envrc
+# Edit .envrc with your database credentials:
+# export GATEKEEPER_DB_DSN='postgres://user:password@localhost:5432/imagelab?sslmode=disable'
 source .envrc
-psql "$GATEKEEPER_DB_DSN" -c 'CREATE EXTENSION IF NOT EXISTS citext;'
-psql "$GATEKEEPER_DB_DSN" -c 'SELECT uuidv7(), uuidv4();'
+```
+
+### 2. Database Setup & Migrations
+Create your database and run migrations:
+```bash
+createdb imagelab
 make db/migrations/up
 ```
 
-Edit the example credentials before connecting. The original Makefile requires
-`.envrc` to exist.
+---
 
-## Start, submit, and observe
+## Running the Application
 
+### 1. Start the API Server
+Start the Go backend server (runs on `http://localhost:4000` by default):
 ```bash
-go run ./cmd/api -db-dsn="$GATEKEEPER_DB_DSN" -report-delay=7s
+make run/api
+# Or manually:
+go run ./cmd/api -db-dsn="$GATEKEEPER_DB_DSN"
 ```
 
-Submit the same request body used in the synchronous version:
-
+### 2. Start the Frontend
+In a separate terminal, launch the static frontend dev server (runs on `http://localhost:5500`):
 ```bash
-curl --include --silent --show-error \
-  --write-out '\nacknowledgement_time=%{time_total}s\n' \
-  --header 'Content-Type: application/json' \
-  --data @request.json http://localhost:4000/v1/reports
+make run/frontend
+```
+Then open `http://localhost:5500` in your web browser.
+
+---
+
+## API Endpoints & Contract
+
+### 1. Image Submission (`POST /v1/images`)
+Receives multipart form data with a single `image` field.
+- **Constraints**: JPEG or PNG format only; max 10 MB (**VAL-01**, **VAL-02**).
+- **Response**: `202 Accepted` with `Location` header and JSON status body:
+```http
+HTTP/1.1 202 Accepted
+Location: /v1/jobs/01917f90-1234-7000-8000-000000000001
+Content-Type: application/json
+
+{
+  "image_id": 1,
+  "job_id": "01917f90-1234-7000-8000-000000000001",
+  "status": "queued",
+  "status_url": "/v1/jobs/01917f90-1234-7000-8000-000000000001"
+}
 ```
 
-Copy the returned job URL and inspect it:
-
-```bash
-curl --silent http://localhost:4000/v1/jobs/REPLACE_WITH_JOB_ID
+### 2. Job Status Query (`GET /v1/jobs/{job_id}`)
+Returns the current job state, timestamps, and completed variant metadata:
+```json
+{
+  "id": "01917f90-1234-7000-8000-000000000001",
+  "status": "completed",
+  "queued_at": "2026-09-08T13:00:00Z",
+  "started_at": "2026-09-08T13:00:01Z",
+  "completed_at": "2026-09-08T13:00:03Z",
+  "variants": [
+    {"name": "thumbnail", "width": 150, "height": 150, "url": "/v1/images/1/variants/thumbnail"},
+    {"name": "preview", "width": 800, "height": 600, "url": "/v1/images/1/variants/preview"},
+    {"name": "display", "width": 1200, "height": 900, "url": "/v1/images/1/variants/display"}
+  ]
+}
 ```
 
-Expected transitions: `queued → processing → completed`, or `failed`.
+---
 
-## Measurement experiment
+## CLI Testing with curl
 
-Restart the server with `-report-delay=0s`, `3s`, `7s`, and `12s`. Measure two
-separate clocks for each setting:
+### Successful Upload
+```bash
+curl -i -X POST http://localhost:4000/v1/images \
+  -F "image=@/path/to/valid_image.png"
+```
 
-1. **Acknowledgement latency:** POST started → `202 Accepted` received.
-2. **Completion latency:** POST started → job reaches `completed` or `failed`.
+### Unsupported File Rejection (e.g., text, PDF, GIF)
+```bash
+curl -i -X POST http://localhost:4000/v1/images \
+  -F "image=@README.md"
+# Expect: 400 Bad Request ("unsupported file type")
+```
 
-The artificial delay belongs to `cmd/api/worker.go`, never the POST handler.
-Consequently acknowledgement should stay relatively stable while completion
-increases with work duration. A 12-second worker delay can complete even though
-the original server still has a 10-second HTTP `WriteTimeout`: no single HTTP
-request must remain open throughout the background work.
+### Oversized File Rejection (> 10 MB)
+```bash
+# Expect: 400 Bad Request ("file size exceeds 10 MB limit")
+```
 
-The worker checks for queued jobs every 250 ms by default. Adjust this with
-`-worker-poll-interval=1s` if your instructor wants queueing delay to be more
-visible. This internal queue check is not the later client-polling lesson.
-
-## Important files
-
-- `cmd/api/reports.go`: create queued work, return `202`, read job status.
-- `cmd/api/worker.go`: independent background execution and controlled delay.
-- `internal/data/jobs.go`: durable jobs, public IDs, and `SKIP LOCKED` claims.
-- `internal/data/reports.go`: unchanged consumer-activity report query.
-- `migrations/000007_seed_sample_data.up.sql`: the same reproducible seed data.
-
-Graceful shutdown cancels the worker before waiting for background tasks.
-Production-grade retries, crash recovery, delivery guarantees, and push-based
-notifications are deliberately outside this starter's scope.
+### Check Job Status
+```bash
+curl -i http://localhost:4000/v1/jobs/<JOB_PUBLIC_ID>
+```

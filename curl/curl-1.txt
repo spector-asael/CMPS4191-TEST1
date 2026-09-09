@@ -1,28 +1,17 @@
-curl -i -X POST http://localhost:4000/consumers \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Dalwin Jones",
-    "email": "dalwin@example.com"
-  }'
+# 1. Successful upload of a PNG or JPEG (returns 202 Accepted + Location header)
+curl -i -X POST http://localhost:4000/v1/images \
+  -F "image=@frontend/favicon.ico" # or path to an image
 
+# 2. Trigger validation failure: Unsupported file type (e.g. text/plain or markdown)
+curl -i -X POST http://localhost:4000/v1/images \
+  -F "image=@README.md"
 
-# Trigger validation failure (empty name)
-curl -i -X POST http://localhost:4000/consumers \
-  -H "Content-Type: application/json" \
-  -d '{"name": "", "email": "dalwin@example.com"}'
+# 3. Trigger validation failure: Missing 'image' form field
+curl -i -X POST http://localhost:4000/v1/images \
+  -F "wrong_field=@README.md"
 
-# Trigger duplicate email
-# Run the first command twice
-curl -i -X POST http://localhost:4000/consumers \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Dalwin Jones", "email": "dalwin@example.com"}'
+# 4. Check job status by public ID
+curl -i http://localhost:4000/v1/jobs/REPLACE_WITH_JOB_ID
 
-# Trigger bad JSON
-curl -i -X POST http://localhost:4000/consumers \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Dalwin Jones", "email":}'
-
-# See Location
-curl -i -X POST http://localhost:4000/consumers \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Dalwin Jones", "email": "dalwin@example.com"}'
+# 5. Query nonexistent job (returns 404 Not Found)
+curl -i http://localhost:4000/v1/jobs/00000000-0000-0000-0000-000000000000
