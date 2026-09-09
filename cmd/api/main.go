@@ -72,6 +72,7 @@ func main() {
 	defer cancelWorker()
 	// app.startReportWorker(workerCtx)
 	app.startImageWorker(workerCtx)
+	app.startReportWorker(workerCtx)
 
 	err = app.serve()
 	if err != nil {

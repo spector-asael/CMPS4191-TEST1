@@ -1,6 +1,6 @@
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS jobs (
+CREATE TABLE IF NOT EXISTS image_jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     public_id UUID NOT NULL DEFAULT gen_random_uuid(),
     image_id BIGINT REFERENCES images(id) ON DELETE CASCADE,

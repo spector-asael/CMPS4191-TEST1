@@ -9,7 +9,6 @@ import (
 	"strings"
 )
 
-
 type envelope map[string]any
 
 func (app *application) writeJSON(w http.ResponseWriter, status int, data envelope, headers http.Header) error {

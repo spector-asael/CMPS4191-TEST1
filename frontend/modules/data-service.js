@@ -20,7 +20,7 @@ export const DataService = {
   },
 
   async fetchJobStatus(statusUrl, signal) {
-    // Prefix API_BASE_URL if statusUrl is a relative path like "/v1/jobs/42"
+    // Prefix API_BASE_URL if statusUrl is a relative path like "/v1/image-jobs/42"
     const url = statusUrl.startsWith('http') 
       ? statusUrl 
       : `${API_BASE_URL}${statusUrl}`;

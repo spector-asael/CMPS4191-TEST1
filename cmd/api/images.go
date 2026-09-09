@@ -86,17 +86,17 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 6. Queue processing job in database
-	job := &data.Job{
+	job := &data.ImageJob{
 		ImageID: &image.ID,
 		JobType: "image_processing",
 	}
-	if err := app.models.Jobs.Insert(job); err != nil {
+	if err := app.models.ImageJobs.InsertImageJob(job); err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
 	// 7. Send 202 Accepted response with polling location
-	statusURL := fmt.Sprintf("/v1/jobs/%s", job.PublicID)
+	statusURL := fmt.Sprintf("/v1/image-jobs/%s", job.PublicID)
 	headers := make(http.Header)
 	headers.Set("Location", statusURL)
 
@@ -112,8 +112,8 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func (app *application) getJobHandler(w http.ResponseWriter, r *http.Request) {
-	job, err := app.models.Jobs.GetByPublicID(r.PathValue("id"))
+func (app *application) getImageJobHandler(w http.ResponseWriter, r *http.Request) {
+	job, err := app.models.ImageJobs.GetImageJobByPublicID(r.PathValue("id"))
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			app.notFoundResponse(w, r)

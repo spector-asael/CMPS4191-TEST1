@@ -35,7 +35,7 @@ func (app *application) startImageWorker(ctx context.Context) {
 
 func (app *application) processNextImageJob(ctx context.Context) error {
 	// 1. Claim next queued image processing job (WRK-02)
-	job, err := app.models.Jobs.ClaimNext(ctx, "image_processing")
+	job, err := app.models.ImageJobs.ClaimNextImageJob(ctx, "image_processing")
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 		"artificial_delay", app.config.jobDelay)
 
 	if job.ImageID == nil {
-		return app.models.Jobs.MarkFailed(ctx, job.ID, "job missing associated image_id")
+		return app.models.ImageJobs.MarkImageJobFailed(ctx, job.ID, "job missing associated image_id")
 	}
 
 	if app.config.jobDelay > 0 {
@@ -59,7 +59,7 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 	// 2. Fetch original image record from PostgreSQL
 	img, err := app.models.Images.Get(*job.ImageID)
 	if err != nil {
-		return app.models.Jobs.MarkFailed(ctx, job.ID, fmt.Sprintf("failed to load image: %v", err))
+		return app.models.ImageJobs.MarkImageJobFailed(ctx, job.ID, fmt.Sprintf("failed to load image: %v", err))
 	}
 
 	// 3. Construct generated variant metadata (Section 10.2 spec)
@@ -92,11 +92,11 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 
 	resultBytes, err := json.Marshal(resultPayload)
 	if err != nil {
-		return app.models.Jobs.MarkFailed(ctx, job.ID, err.Error())
+		return app.models.ImageJobs.MarkImageJobFailed(ctx, job.ID, err.Error())
 	}
 
 	// 4. Update job to completed and attach JSONB variants
-	if err := app.models.Jobs.MarkCompleted(ctx, job.ID, resultBytes); err != nil {
+	if err := app.models.ImageJobs.MarkImageJobCompleted(ctx, job.ID, resultBytes); err != nil {
 		return err
 	}
 

@@ -18,7 +18,7 @@ type Variant struct {
 	URL    string `json:"url"`
 }
 
-type Job struct {
+type ImageJob struct {
 	ID           string          `json:"-"`
 	PublicID     string          `json:"id"`
 	ImageID      *int64          `json:"image_id,omitempty"`
@@ -33,22 +33,22 @@ type Job struct {
 	CompletedAt  *time.Time      `json:"completed_at,omitempty"`
 }
 
-type JobModel struct {
+type ImageJobModel struct {
 	DB *sql.DB
 }
 
 // Insert creates a durable job record in PostgreSQL (JOB-01)
-func (m JobModel) Insert(job *Job) error {
+func (m ImageJobModel) InsertImageJob(image_job *ImageJob) error {
 	query := `
-		INSERT INTO jobs (image_id, job_type, payload, status)
+		INSERT INTO image_jobs (image_id, job_type, payload, status)
 		VALUES ($1, $2, COALESCE($3, '{}'::jsonb), 'queued')
 		RETURNING id, public_id, status, created_at`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, job.ImageID, job.JobType, job.Payload).Scan(
-		&job.ID, &job.PublicID, &job.Status, &job.QueuedAt,
+	err := m.DB.QueryRowContext(ctx, query, image_job.ImageID, image_job.JobType, image_job.Payload).Scan(
+		&image_job.ID, &image_job.PublicID, &image_job.Status, &image_job.QueuedAt,
 	)
 	if err != nil {
 		var pgErr *pq.Error
@@ -61,7 +61,7 @@ func (m JobModel) Insert(job *Job) error {
 }
 
 // ClaimNext claims the next queued job for a specific jobType using FOR UPDATE SKIP LOCKED (WRK-02)
-func (m JobModel) ClaimNext(ctx context.Context, jobType string) (*Job, error) {
+func (m ImageJobModel) ClaimNextImageJob(ctx context.Context, jobType string) (*ImageJob, error) {
 	tx, err := m.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -70,13 +70,13 @@ func (m JobModel) ClaimNext(ctx context.Context, jobType string) (*Job, error) {
 
 	query := `
 		SELECT id, public_id, image_id, job_type, COALESCE(payload, '{}'::jsonb)
-		FROM jobs
+		FROM image_jobs
 		WHERE status = 'queued' AND job_type = $1
 		ORDER BY created_at
 		FOR UPDATE SKIP LOCKED
 		LIMIT 1`
 
-	var job Job
+	var job ImageJob
 	if err := tx.QueryRowContext(ctx, query, jobType).Scan(
 		&job.ID, &job.PublicID, &job.ImageID, &job.JobType, &job.Payload,
 	); err != nil {
@@ -84,7 +84,7 @@ func (m JobModel) ClaimNext(ctx context.Context, jobType string) (*Job, error) {
 	}
 
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE jobs SET status = 'processing', started_at = now() WHERE id = $1`, job.ID); err != nil {
+		`UPDATE image_jobs SET status = 'processing', started_at = now() WHERE id = $1`, job.ID); err != nil {
 		return nil, err
 	}
 
@@ -97,18 +97,18 @@ func (m JobModel) ClaimNext(ctx context.Context, jobType string) (*Job, error) {
 }
 
 // GetByPublicID returns current status and unmarshals variant metadata if completed (Section 10)
-func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
+func (m ImageJobModel) GetImageJobByPublicID(publicID string) (*ImageJob, error) {
 	query := `
 		SELECT id, public_id, image_id, job_type, status,
 		       COALESCE(payload, 'null'::jsonb),
 		       COALESCE(result, 'null'::jsonb),
 		       error_message, started_at, completed_at, created_at
-		FROM jobs WHERE public_id = $1`
+		FROM image_jobs WHERE public_id = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	var job Job
+	var job ImageJob
 	err := m.DB.QueryRowContext(ctx, query, publicID).Scan(
 		&job.ID, &job.PublicID, &job.ImageID, &job.JobType, &job.Status,
 		&job.Payload, &job.Result, &job.ErrorMessage, &job.StartedAt, &job.CompletedAt, &job.QueuedAt,
@@ -133,16 +133,16 @@ func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 	return &job, nil
 }
 
-func (m JobModel) MarkCompleted(ctx context.Context, id string, result []byte) error {
+func (m ImageJobModel) MarkImageJobCompleted(ctx context.Context, id string, result []byte) error {
 	_, err := m.DB.ExecContext(ctx,
-		`UPDATE jobs SET status = 'completed', result = $2, completed_at = now() WHERE id = $1`,
+		`UPDATE image_jobs SET status = 'completed', result = $2, completed_at = now() WHERE id = $1`,
 		id, result)
 	return err
 }
 
-func (m JobModel) MarkFailed(ctx context.Context, id, message string) error {
+func (m ImageJobModel) MarkImageJobFailed(ctx context.Context, id, message string) error {
 	_, err := m.DB.ExecContext(ctx,
-		`UPDATE jobs SET status = 'failed', error_message = $2, completed_at = now() WHERE id = $1`,
+		`UPDATE image_jobs SET status = 'failed', error_message = $2, completed_at = now() WHERE id = $1`,
 		id, message)
 	return err
 }

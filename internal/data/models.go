@@ -5,13 +5,19 @@ import (
 )
 
 type Models struct {
-	Jobs   JobModel
-	Images ImageModel
+	ImageJobs   ImageJobModel
+	Images      ImageModel
+	Consumers   ConsumerModel
+	Reports     ReportModel
+	ReportsJobs ReportJobModel
 }
 
 func NewModels(db *sql.DB) Models {
 	return Models{
-		Jobs:   JobModel{DB: db},
-		Images: ImageModel{DB: db},
+		ImageJobs:   ImageJobModel{DB: db},
+		Images:      ImageModel{DB: db},
+		Reports:     ReportModel{DB: db},
+		ReportsJobs: ReportJobModel{DB: db},
+		Consumers:   ConsumerModel{DB: db},
 	}
 }

@@ -1,0 +1,5 @@
+BEGIN;
+
+DROP TABLE IF EXISTS image_jobs CASCADE;
+
+COMMIT;
