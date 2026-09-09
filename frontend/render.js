@@ -40,8 +40,15 @@ emitter.on('stateChanged', (state) => {
   }
 
   // 3. Render Button State (UI-02, UI-08)
-  processBtn.disabled = !state.selectedFile || state.isSubmitting;
-  processBtn.textContent = state.isSubmitting ? 'Uploading...' : 'Process image';
+  const isJobActive = state.activeJob && (state.activeJob.status === 'queued' || state.activeJob.status === 'processing');
+  processBtn.disabled = !state.selectedFile || state.isSubmitting || isJobActive;
+  if (state.isSubmitting) {
+    processBtn.textContent = 'Uploading...';
+  } else if (isJobActive) {
+    processBtn.textContent = 'Processing...';
+  } else {
+    processBtn.textContent = 'Process image';
+  }
 
   // 4. Render Active Job & Timeline Badges (UI-10, UI-11, UI-16)
   const stepUpload = document.getElementById('step-upload');

@@ -1,13 +1,13 @@
-import { getState, setState } from './state.js';
-import { DataService } from './modules/data-service.js';
+import { getState, setState } from "./state.js";
+import { DataService } from "./modules/data-service.js";
 
 // Elements
-const fileInput = document.getElementById('file-input');
-const processBtn = document.getElementById('process-btn');
-const tryAgainBtn = document.getElementById('try-again-btn');
+const fileInput = document.getElementById("file-input");
+const processBtn = document.getElementById("process-btn");
+const tryAgainBtn = document.getElementById("try-again-btn");
 
 // Preview Image Selection (UI-05, UI-06)
-fileInput.addEventListener('change', (e) => {
+fileInput.addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
@@ -19,14 +19,15 @@ fileInput.addEventListener('change', (e) => {
     uploadError: null, // Clear past upload errors on new selection
     activeJob: null,
     variants: [],
-    observationError: false
+    observationError: false,
   });
 });
 
 // Primary Upload Submission Handler (SUB-01, SUB-02)
-processBtn.addEventListener('click', async () => {
-  const { isSubmitting, selectedFile } = getState();
-  if (isSubmitting || !selectedFile) return;
+processBtn.addEventListener("click", async () => {
+  const { isSubmitting, selectedFile, activeJob } = getState();
+  const isJobActive = activeJob && (activeJob.status === "queued" || activeJob.status === "processing");
+  if (isSubmitting || !selectedFile || isJobActive) return;
 
   const requestStart = performance.now();
   setState({ isSubmitting: true, uploadError: null, observationError: false });
@@ -37,13 +38,13 @@ processBtn.addEventListener('click', async () => {
 
     setState({
       activeJob: data,
-      metrics: { requestStart, ackLatency }
+      metrics: { requestStart, ackLatency },
     });
 
     startPolling(data.status_url); // POLL-01
   } catch (err) {
     // Store rejection message into state instead of browser alert
-    setState({ uploadError: err.message || 'Submission error' });
+    setState({ uploadError: err.message || "Submission error" });
   } finally {
     setState({ isSubmitting: false });
   }
@@ -69,16 +70,16 @@ function stopPolling() {
 async function poll(statusUrl, signal) {
   try {
     const jobData = await DataService.fetchJobStatus(statusUrl, signal);
-    
+
     // Server processed job (completed or failed)
-    if (jobData.status === 'completed' || jobData.status === 'failed') {
+    if (jobData.status === "completed" || jobData.status === "failed") {
       stopPolling(); // POLL-05
       setState({ activeJob: jobData, variants: jobData.variants || [] });
     } else {
       setState({ activeJob: jobData }); // queued or processing
     }
   } catch (err) {
-    if (err.name === 'AbortError') return;
+    if (err.name === "AbortError") return;
 
     // Retrieval Error Policy: Stop polling, preserve job, show "Try again" (POLL-07 to POLL-10)
     stopPolling();
@@ -87,7 +88,7 @@ async function poll(statusUrl, signal) {
 }
 
 // Try Again Handler (POLL-09, POLL-10)
-tryAgainBtn.addEventListener('click', () => {
+tryAgainBtn.addEventListener("click", () => {
   const { activeJob } = getState();
   if (activeJob?.status_url) {
     setState({ observationError: false });
