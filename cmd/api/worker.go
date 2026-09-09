@@ -57,7 +57,7 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 	}
 
 	// 2. Fetch original image record from PostgreSQL
-	img, err := app.models.Images.Get(*job.ImageID)
+	img, err := app.models.Images.Get(job.ImageID)
 	if err != nil {
 		return app.models.Jobs.MarkFailed(ctx, job.ID, fmt.Sprintf("failed to load image: %v", err))
 	}
@@ -68,19 +68,19 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 			Name:   "thumbnail",
 			Width:  150,
 			Height: 150,
-			URL:    fmt.Sprintf("/v1/images/%d/variants/thumbnail", img.ID),
+			URL:    fmt.Sprintf("/v1/images/%s/variants/thumbnail", img.ID),
 		},
 		{
 			Name:   "preview",
 			Width:  800,
 			Height: 600,
-			URL:    fmt.Sprintf("/v1/images/%d/variants/preview", img.ID),
+			URL:    fmt.Sprintf("/v1/images/%s/variants/preview", img.ID),
 		},
 		{
 			Name:   "display",
 			Width:  1200,
 			Height: 900,
-			URL:    fmt.Sprintf("/v1/images/%d/variants/display", img.ID),
+			URL:    fmt.Sprintf("/v1/images/%s/variants/display", img.ID),
 		},
 	}
 

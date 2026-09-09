@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/lewisdalwin/gatekeeper/internal/data"
@@ -151,14 +150,8 @@ func (app *application) getVariantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	imageID, err := strconv.ParseInt(imageIDStr, 10, 64)
-	if err != nil || imageID < 1 {
-		app.notFoundResponse(w, r)
-		return
-	}
-
 	// Fetch image record to find the stored filename
-	image, err := app.models.Images.Get(imageID)
+	image, err := app.models.Images.Get(&imageIDStr)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			app.notFoundResponse(w, r)

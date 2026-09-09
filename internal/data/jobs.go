@@ -21,7 +21,7 @@ type Variant struct {
 type Job struct {
 	ID           string          `json:"-"`
 	PublicID     string          `json:"id"`
-	ImageID      *int64          `json:"image_id,omitempty"`
+	ImageID      *string         `json:"image_id,omitempty"`
 	JobType      string          `json:"job_type,omitempty"`
 	Status       string          `json:"status"`
 	Payload      json.RawMessage `json:"payload,omitempty"`

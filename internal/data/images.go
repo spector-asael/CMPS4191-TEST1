@@ -12,7 +12,7 @@ import (
 var ErrRecordNotFound = errors.New("no record found")
 
 type Image struct {
-	ID               int64     `json:"id"`
+	ID               string    `json:"id"`
 	OriginalFilename string    `json:"original_filename"`
 	StoredFilename   string    `json:"stored_filename"`
 	MediaType        string    `json:"media_type"`
@@ -45,8 +45,8 @@ func (m ImageModel) Insert(image *Image) error {
 }
 
 // Get retrieves an image record by its primary key ID[cite: 1].
-func (m ImageModel) Get(id int64) (*Image, error) {
-	if id < 1 {
+func (m ImageModel) Get(id *string) (*Image, error) {
+	if *id == "" {
 		return nil, ErrRecordNotFound
 	}
 
