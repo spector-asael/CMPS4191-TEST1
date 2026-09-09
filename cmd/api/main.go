@@ -39,7 +39,7 @@ func main() {
 
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
-	flag.DurationVar(&cfg.jobDelay, "report-delay", 1000000, "Artificial report-generation delay inside the worker")
+	flag.DurationVar(&cfg.jobDelay, "report-delay", 10000000000, "Artificial report-generation delay inside the worker")
 	flag.DurationVar(&cfg.workerPollInterval, "worker-poll-interval", 250*time.Millisecond, "Worker queue-check interval")
 
 	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")

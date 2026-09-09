@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/lewisdalwin/gatekeeper/internal/data"
@@ -135,4 +136,40 @@ func (app *application) getJobHandler(w http.ResponseWriter, r *http.Request) {
 	if err := app.writeJSON(w, http.StatusOK, response, nil); err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
+}
+
+func (app *application) getVariantHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract path parameters (Go 1.22+ routing)
+	imageIDStr := r.PathValue("id")
+	variantName := r.PathValue("name")
+
+	// Validate variant name per spec constraints (IMG-01)
+	switch variantName {
+	case "thumbnail", "preview", "display":
+	default:
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	imageID, err := strconv.ParseInt(imageIDStr, 10, 64)
+	if err != nil || imageID < 1 {
+		app.notFoundResponse(w, r)
+		return
+	}
+
+	// Fetch image record to find the stored filename
+	image, err := app.models.Images.Get(imageID)
+	if err != nil {
+		if errors.Is(err, data.ErrRecordNotFound) {
+			app.notFoundResponse(w, r)
+			return
+		}
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	// Serve the stored original file from ./uploads/ with 200 OK
+	filePath := filepath.Join("./uploads", image.StoredFilename)
+	w.Header().Set("Content-Type", image.MediaType)
+	http.ServeFile(w, r, filePath)
 }

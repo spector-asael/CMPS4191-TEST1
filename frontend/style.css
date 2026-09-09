@@ -407,3 +407,18 @@ body {
     grid-column: span 1;
   }
 }
+
+.error-banner {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--status-failed-bg);
+  border: 1px solid var(--status-failed-border);
+  color: var(--status-failed-text);
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  word-break: break-word;
+}
+
+.error-banner.hidden {
+  display: none;
+}

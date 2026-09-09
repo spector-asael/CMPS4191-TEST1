@@ -4,6 +4,7 @@ const state = {
   selectedFile: null,
   isSubmitting: false, // Double-submit guard
   activeJob: null,      // Stores status, job_id, image_id, timestamps
+  uploadError: null,
   variants: [],
   pollingTimer: null,
   abortController: null, // For cancelling fetch requests on reset

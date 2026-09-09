@@ -11,7 +11,9 @@ export const DataService = {
     });
 
     if (response.status !== 202) {
-      throw new Error(`Upload failed with status ${response.status}`);
+      // Attempt to extract the error message returned in the JSON payload
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Upload failed with status ${response.status}`);
     }
 
     return await response.json();
@@ -24,9 +26,12 @@ export const DataService = {
       : `${API_BASE_URL}${statusUrl}`;
 
     const response = await fetch(url, { signal });
+
     if (!response.ok) {
-      throw new Error(`Failed to observe job: ${response.status}`);
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Failed to observe job: ${response.status}`);
     }
+
     return await response.json();
   }
 };

@@ -7,7 +7,10 @@ func (app *application) routes() http.Handler {
 	mux.HandleFunc("GET /v1/healthcheck", app.healthcheckHandler)
 	mux.HandleFunc("GET /v1/jobs/{id}", app.getJobHandler)
 	mux.HandleFunc("POST /v1/images", app.uploadImageHandler)
+	mux.HandleFunc("GET /v1/images/{id}/variants/{name}", app.getVariantHandler)
 
-	enableCorse := app.enableCORS(mux)
-	return enableCorse
+	loggingMiddleware := app.loggingMiddleware(mux)
+	enableCorse := app.enableCORS(loggingMiddleware)
+	recoverPanic := app.recoverPanic(enableCorse)
+	return recoverPanic
 }
