@@ -39,10 +39,21 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	app.logger.Info("image processing job started", "job_id", job.PublicID)
+	app.logger.Info("image processing job started", "job_id", job.PublicID,
+		"artificial_delay", app.config.jobDelay)
 
 	if job.ImageID == nil {
 		return app.models.Jobs.MarkFailed(ctx, job.ID, "job missing associated image_id")
+	}
+
+	if app.config.jobDelay > 0 {
+		timer := time.NewTimer(app.config.jobDelay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+		}
 	}
 
 	// 2. Fetch original image record from PostgreSQL

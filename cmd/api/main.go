@@ -16,7 +16,7 @@ import (
 type config struct {
 	port               int
 	env                string
-	reportDelay        time.Duration
+	jobDelay           time.Duration
 	workerPollInterval time.Duration
 	db                 struct {
 		dsn          string
@@ -39,7 +39,7 @@ func main() {
 
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
-	flag.DurationVar(&cfg.reportDelay, "report-delay", 0, "Artificial report-generation delay inside the worker")
+	flag.DurationVar(&cfg.jobDelay, "report-delay", 1000000, "Artificial report-generation delay inside the worker")
 	flag.DurationVar(&cfg.workerPollInterval, "worker-poll-interval", 250*time.Millisecond, "Worker queue-check interval")
 
 	flag.StringVar(&cfg.db.dsn, "db-dsn", "", "PostgreSQL DSN")
