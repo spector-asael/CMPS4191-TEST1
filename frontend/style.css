@@ -422,3 +422,9 @@ body {
 .error-banner.hidden {
   display: none;
 }
+
+.step-item.failed .step-icon {
+  border-color: var(--status-failed-border);
+  background: var(--status-failed-bg);
+  color: var(--status-failed-text);
+}

@@ -12,6 +12,8 @@ emitter.on('stateChanged', (state) => {
   const jobStatus = document.getElementById('job-status');
   const tryAgainContainer = document.getElementById('try-again-container');
   const variantsContainer = document.getElementById('variants-container');
+  const labelComplete = document.getElementById('label-complete');
+  const jobError = document.getElementById('job-error');
 
   // Render Immediate Upload Error Banner (VAL-05)
   if (state.uploadError) {
@@ -68,7 +70,6 @@ emitter.on('stateChanged', (state) => {
     document.getElementById('time-stored').textContent = fmt(state.activeJob.queued_at);
     document.getElementById('time-variants').textContent = fmt(state.activeJob.started_at);
 
-    // Always completed once an active job exists (202 response)
     stepUpload.className = 'step-item flex-container completed';
     stepUpload.querySelector('.step-icon').textContent = '✓';
 
@@ -82,27 +83,41 @@ emitter.on('stateChanged', (state) => {
     } else if (status === 'processing') {
       stepVariants.className = 'step-item flex-container active';
       stepVariants.querySelector('.step-icon').textContent = '⚙';
+    } else if (status === 'failed') {
+      stepVariants.className = 'step-item flex-container failed';
+      stepVariants.querySelector('.step-icon').textContent = '✕';
     } else {
       stepVariants.className = 'step-item flex-container';
       stepVariants.querySelector('.step-icon').textContent = '○';
     }
 
-    // Update Complete step state & render timeline failure error
+    // Update Final Timeline Step State & Error Display
     if (status === 'completed') {
       stepComplete.className = 'step-item flex-container completed';
       stepComplete.querySelector('.step-icon').textContent = '✓';
+      if (labelComplete) labelComplete.textContent = 'Complete';
       timeComplete.textContent = fmt(state.activeJob.completed_at);
       timeComplete.style.color = 'var(--text-muted)';
+      if (jobError) jobError.classList.add('hidden');
     } else if (status === 'failed') {
       stepComplete.className = 'step-item flex-container failed';
       stepComplete.querySelector('.step-icon').textContent = '✕';
-      timeComplete.textContent = state.activeJob.error_message || 'Processing failed';
+      if (labelComplete) labelComplete.textContent = 'Failed';
+      timeComplete.textContent = fmt(state.activeJob.completed_at || state.activeJob.started_at);
       timeComplete.style.color = 'var(--status-failed-text)';
+
+      // Display clear, prominent processing error banner
+      if (jobError) {
+        jobError.textContent = `Processing Error: ${state.activeJob.error_message || 'Processing failed'}`;
+        jobError.classList.remove('hidden');
+      }
     } else {
       stepComplete.className = 'step-item flex-container';
       stepComplete.querySelector('.step-icon').textContent = '○';
+      if (labelComplete) labelComplete.textContent = 'Complete';
       timeComplete.textContent = 'Pending';
       timeComplete.style.color = 'var(--text-muted)';
+      if (jobError) jobError.classList.add('hidden');
     }
   } else {
     jobId.textContent = '#--';
@@ -115,6 +130,9 @@ emitter.on('stateChanged', (state) => {
     document.getElementById('time-variants').textContent = '--';
     timeComplete.textContent = '--';
     timeComplete.style.color = 'var(--text-muted)';
+
+    if (labelComplete) labelComplete.textContent = 'Complete';
+    if (jobError) jobError.classList.add('hidden');
 
     // Reset timeline step icons and classes
     [stepUpload, stepStored, stepVariants, stepComplete].forEach(el => {
@@ -129,9 +147,9 @@ emitter.on('stateChanged', (state) => {
   // 5. Render Observation Error Prompt (POLL-09)
   tryAgainContainer.style.display = state.observationError ? 'flex' : 'none';
 
-  // 6. Render Dynamically Generated Variant Cards into Row 3 Grid (UI-15, IMG-04)
+  // 6. Render Dynamically Generated Variant Cards
   if (state.activeJob?.status === 'completed' && state.variants?.length) {
-    variantsContainer.innerHTML = ''; // Reset container
+    variantsContainer.innerHTML = '';
 
     state.variants.forEach(variant => {
       const card = document.createElement('div');

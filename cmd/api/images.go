@@ -50,16 +50,28 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 4. Save file to disk in local uploads directory
-	uploadDir := "./uploads"
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+	// 4. Persist image record in database to obtain generated image.ID
+	storedFilename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filepath.Base(header.Filename))
+	image := &data.Image{
+		OriginalFilename: header.Filename,
+		StoredFilename:   storedFilename,
+		MediaType:        mimeType,
+		Size:             header.Size,
+	}
+	if err := app.models.Images.Insert(image); err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	storedFilename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filepath.Base(header.Filename))
-	dstPath := filepath.Join(uploadDir, storedFilename)
+	// 5. Create dedicated directory on disk: ./uploads/{image_id}
+	imgDir := filepath.Join("./uploads", image.ID)
+	if err := os.MkdirAll(imgDir, 0755); err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
 
+	// 6. Save original file inside ./uploads/{image_id}/{storedFilename}
+	dstPath := filepath.Join(imgDir, storedFilename)
 	dst, err := os.Create(dstPath)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -72,19 +84,7 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 5. Persist image record in database
-	image := &data.Image{
-		OriginalFilename: header.Filename,
-		StoredFilename:   storedFilename,
-		MediaType:        mimeType,
-		Size:             header.Size,
-	}
-	if err := app.models.Images.Insert(image); err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	// 6. Queue processing job in database
+	// 7. Queue processing job in database
 	job := &data.Job{
 		ImageID: &image.ID,
 		JobType: "image_processing",
@@ -94,7 +94,7 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 7. Send 202 Accepted response with polling location
+	// 8. Send 202 Accepted response with polling location header
 	statusURL := fmt.Sprintf("/v1/jobs/%s", job.PublicID)
 	headers := make(http.Header)
 	headers.Set("Location", statusURL)
@@ -138,11 +138,9 @@ func (app *application) getJobHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) getVariantHandler(w http.ResponseWriter, r *http.Request) {
-	// Extract path parameters (Go 1.22+ routing)
 	imageIDStr := r.PathValue("id")
 	variantName := r.PathValue("name")
 
-	// Validate variant name per spec constraints (IMG-01)
 	switch variantName {
 	case "thumbnail", "preview", "display":
 	default:
@@ -150,7 +148,6 @@ func (app *application) getVariantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Fetch image record to find the stored filename
 	image, err := app.models.Images.Get(&imageIDStr)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
@@ -161,8 +158,20 @@ func (app *application) getVariantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Serve the stored original file from ./uploads/ with 200 OK
-	filePath := filepath.Join("./uploads", image.StoredFilename)
+	ext := ".jpg"
+	if image.MediaType == "image/png" {
+		ext = ".png"
+	}
+
+	// Match the new file naming pattern: {image_id}-{variant_name}.{ext}
+	variantFileName := fmt.Sprintf("%s-%s%s", image.ID, variantName, ext)
+	variantPath := filepath.Join("./uploads", image.ID, "variants", variantFileName)
+
+	if _, err := os.Stat(variantPath); os.IsNotExist(err) {
+		app.notFoundResponse(w, r)
+		return
+	}
+
 	w.Header().Set("Content-Type", image.MediaType)
-	http.ServeFile(w, r, filePath)
+	http.ServeFile(w, r, variantPath)
 }

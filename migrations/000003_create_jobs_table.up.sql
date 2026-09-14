@@ -3,7 +3,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     public_id UUID NOT NULL DEFAULT gen_random_uuid(),
-    image_id BIGINT REFERENCES images(id) ON DELETE CASCADE,
+    image_id UUID REFERENCES images(id) ON DELETE CASCADE,
     job_type TEXT NOT NULL DEFAULT 'image_processing',
     status job_status NOT NULL DEFAULT 'queued',
     payload JSONB DEFAULT '{}',
