@@ -38,6 +38,8 @@ func (app *application) startImageWorker(ctx context.Context) {
 		}
 	}()
 }
+
+// processNextImageJob orchestrates claiming, processing, and completing an image job.
 func (app *application) processNextImageJob(ctx context.Context) error {
 	job, err := app.models.Jobs.ClaimNext(ctx, "image_processing")
 	if err != nil {
@@ -54,26 +56,50 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 		return app.models.Jobs.MarkFailed(ctx, job.ID, fmt.Sprintf("failed to load image record: %v", err))
 	}
 
-	// 1. Open original file from ./uploads/{image_id}/
-	imgDir := filepath.Join("./uploads", img.ID)
-	origPath := filepath.Join(imgDir, img.StoredFilename)
+	// 1. Decode original file from disk
+	srcImg, format, err := loadAndDecodeImage(img)
+	if err != nil {
+		return app.models.Jobs.MarkFailed(ctx, job.ID, err.Error())
+	}
+
+	// 2. Generate variant images and construct metadata
+	variants, err := generateVariants(img, srcImg, format)
+	if err != nil {
+		return app.models.Jobs.MarkFailed(ctx, job.ID, err.Error())
+	}
+
+	// 3. Mark job complete in PostgreSQL
+	if err := app.completeJob(ctx, job, variants); err != nil {
+		return err
+	}
+
+	app.logger.Info("image processing job completed", "job_id", job.PublicID)
+	return nil
+}
+
+// loadAndDecodeImage opens the original file from the upload directory and decodes its header.
+func loadAndDecodeImage(img *data.Image) (image.Image, string, error) {
+	origPath := filepath.Join("./uploads", img.ID, img.StoredFilename)
 
 	srcFile, err := os.Open(origPath)
 	if err != nil {
-		return app.models.Jobs.MarkFailed(ctx, job.ID, fmt.Sprintf("failed to open original file: %v", err))
+		return nil, "", fmt.Errorf("failed to open original file: %w", err)
 	}
 	defer srcFile.Close()
 
-	// Decode image (returns error if file is corrupted or unsupported)
 	srcImg, format, err := image.Decode(srcFile)
 	if err != nil {
-		return app.models.Jobs.MarkFailed(ctx, job.ID, fmt.Sprintf("unable to decode image header: %v", err))
+		return nil, "", fmt.Errorf("unable to decode image header: %w", err)
 	}
 
-	// 2. Create variants folder: ./uploads/{image_id}/variants/
-	variantsDir := filepath.Join(imgDir, "variants")
+	return srcImg, format, nil
+}
+
+// generateVariants creates thumbnail, preview, and display variants and saves them to disk.
+func generateVariants(img *data.Image, srcImg image.Image, format string) ([]data.Variant, error) {
+	variantsDir := filepath.Join("./uploads", img.ID, "variants")
 	if err := os.MkdirAll(variantsDir, 0755); err != nil {
-		return app.models.Jobs.MarkFailed(ctx, job.ID, fmt.Sprintf("failed to create variants directory: %v", err))
+		return nil, fmt.Errorf("failed to create variants directory: %w", err)
 	}
 
 	specs := []struct {
@@ -93,16 +119,14 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 
 	var variants []data.Variant
 	for _, spec := range specs {
-		// Construct filename using Image ID and variant suffix
 		varFileName := fmt.Sprintf("%s-%s%s", img.ID, spec.Name, ext)
 		varPath := filepath.Join(variantsDir, varFileName)
 
-		// Scale image
 		resized := resizeImage(srcImg, spec.Width, spec.Height)
 
 		outFile, err := os.Create(varPath)
 		if err != nil {
-			return app.models.Jobs.MarkFailed(ctx, job.ID, fmt.Sprintf("failed to create variant file %s: %v", spec.Name, err))
+			return nil, fmt.Errorf("failed to create variant file %s: %w", spec.Name, err)
 		}
 
 		if format == "png" {
@@ -113,7 +137,7 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 		outFile.Close()
 
 		if err != nil {
-			return app.models.Jobs.MarkFailed(ctx, job.ID, fmt.Sprintf("failed to encode variant %s: %v", spec.Name, err))
+			return nil, fmt.Errorf("failed to encode variant %s: %w", spec.Name, err)
 		}
 
 		variants = append(variants, data.Variant{
@@ -124,7 +148,11 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 		})
 	}
 
-	// 3. Save payload metadata and mark job completed
+	return variants, nil
+}
+
+// completeJob encodes variant results into JSON and marks the database record as completed.
+func (app *application) completeJob(ctx context.Context, job *data.Job, variants []data.Variant) error {
 	resultBytes, err := json.Marshal(struct {
 		Variants []data.Variant `json:"variants"`
 	}{Variants: variants})
@@ -132,12 +160,7 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 		return app.models.Jobs.MarkFailed(ctx, job.ID, err.Error())
 	}
 
-	if err := app.models.Jobs.MarkCompleted(ctx, job.ID, resultBytes); err != nil {
-		return err
-	}
-
-	app.logger.Info("image processing job completed", "job_id", job.PublicID)
-	return nil
+	return app.models.Jobs.MarkCompleted(ctx, job.ID, resultBytes)
 }
 
 // Bilinear interpolation scaling helper
