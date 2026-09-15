@@ -71,12 +71,14 @@ async function poll(statusUrl, signal) {
   try {
     const jobData = await DataService.fetchJobStatus(statusUrl, signal);
 
+    const mergedJob = { ...jobData, status_url: statusUrl };
+
     // Server processed job (completed or failed)
     if (jobData.status === "completed" || jobData.status === "failed") {
       stopPolling(); // POLL-05
-      setState({ activeJob: jobData, variants: jobData.variants || [] });
+      setState({ activeJob: mergedJob, variants: jobData.variants || [] });
     } else {
-      setState({ activeJob: jobData }); // queued or processing
+      setState({ activeJob: mergedJob }); // queued or processing
     }
   } catch (err) {
     if (err.name === "AbortError") return;
