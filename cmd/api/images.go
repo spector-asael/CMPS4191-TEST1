@@ -124,6 +124,7 @@ func (app *application) getJobHandler(w http.ResponseWriter, r *http.Request) {
 
 	response := envelope{
 		"id":            job.PublicID,
+		"image_id":      job.ImageID,
 		"status":        job.Status,
 		"variants":      job.Variants,
 		"queued_at":     job.QueuedAt,
