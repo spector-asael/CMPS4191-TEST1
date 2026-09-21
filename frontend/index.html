@@ -35,15 +35,19 @@
         <div class="preview-box flex-container">
           <img id="preview-img" src="" alt="Preview" class="hidden" />
           <div class="file-info flex-container">
-            <span id="file-name">No file selected</span>   
-            <span id="file-meta"></span>   
-            <label for="file-input" class="btn-secondary">Choose image</label>   
-            <input type="file" id="file-input" accept="image/jpeg, image/png" hidden />   
+            <input type="file" id="file-input" accept="image/jpeg, image/png" hidden /> 
           </div>
         </div>
-
-        <button id="process-btn" class="btn-primary" disabled>Process image</button>
-        <div id="upload-error" class="error-banner hidden"></div>   
+        <div id="options">
+          
+            <div class="file-info flex-container">
+            <span id="file-name">No file selected</span>   
+            <span id="file-meta"></span>   
+          </div>
+          <label for="file-input" class="btn-secondary">Choose image</label> 
+          <button id="process-btn" class="btn-primary" disabled>Process image</button>
+          <div id="upload-error" class="error-banner hidden"></div>   
+        </div>
       </div>
 
       <!-- TOP RIGHT CARD: Job Details & Timeline (Spans 3 Columns, Rows 1-2)    -->
