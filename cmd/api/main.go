@@ -40,7 +40,7 @@ func main() {
 	var legacyDelay time.Duration
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
-	flag.DurationVar(&cfg.jobDelay, "job-delay", 0, "Artificial job processing delay inside the worker")
+	flag.DurationVar(&cfg.jobDelay, "job-delay", 7*time.Second, "Artificial job processing delay inside the worker")
 	flag.DurationVar(&legacyDelay, "report-delay", 0, "Legacy alias for -job-delay")
 	flag.DurationVar(&cfg.workerPollInterval, "worker-poll-interval", 250*time.Millisecond, "Worker queue-check interval")
 

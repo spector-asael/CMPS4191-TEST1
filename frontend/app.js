@@ -6,12 +6,17 @@ const fileInput = document.getElementById("file-input");
 const processBtn = document.getElementById("process-btn");
 const tryAgainBtn = document.getElementById("try-again-btn");
 
+// 1. Cancel observation if the browser tab or page is closed/refreshed (POLL-06)
+window.addEventListener("beforeunload", () => {
+  stopPolling();
+});
+
 // Preview Image Selection (UI-05, UI-06)
 fileInput.addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  // Reset existing polling if picking a new file (POLL-06)
+  // Cancel active observation if switching/selecting a new file (POLL-06)
   stopPolling();
 
   setState({
@@ -29,6 +34,9 @@ processBtn.addEventListener("click", async () => {
   const isJobActive = activeJob && (activeJob.status === "queued" || activeJob.status === "processing");
   if (isSubmitting || !selectedFile || isJobActive) return;
 
+  // Clean up any stale polling before initiating a new job
+  stopPolling();
+
   const requestStart = performance.now();
   setState({ isSubmitting: true, uploadError: null, observationError: false });
 
@@ -43,7 +51,6 @@ processBtn.addEventListener("click", async () => {
 
     startPolling(data.status_url); // POLL-01
   } catch (err) {
-    // Store rejection message into state instead of browser alert
     setState({ uploadError: err.message || "Submission error" });
   } finally {
     setState({ isSubmitting: false });
@@ -63,7 +70,9 @@ function startPolling(statusUrl) {
 function stopPolling() {
   const { pollingTimer, abortController } = getState();
   if (pollingTimer) clearInterval(pollingTimer);
-  if (abortController) abortController.abort(); // Cancel active GETs (POLL-06)
+  if (abortController) {
+    abortController.abort(); // Instantly cancels active GET fetch in DevTools (POLL-06)
+  }
   setState({ pollingTimer: null, abortController: null });
 }
 
@@ -75,12 +84,13 @@ async function poll(statusUrl, signal) {
 
     // Server processed job (completed or failed)
     if (jobData.status === "completed" || jobData.status === "failed") {
-      stopPolling(); // POLL-05
+      stopPolling(); // Stop polling when terminal state is reached (POLL-05)
       setState({ activeJob: mergedJob, variants: jobData.variants || [] });
     } else {
       setState({ activeJob: mergedJob }); // queued or processing
     }
   } catch (err) {
+    // Ignore aborted fetch errors caused by stopPolling()
     if (err.name === "AbortError") return;
 
     // Retrieval Error Policy: Stop polling, preserve job, show "Try again" (POLL-07 to POLL-10)
