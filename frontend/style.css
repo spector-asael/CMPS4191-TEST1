@@ -477,3 +477,7 @@ body {
   outline: 2px solid var(--text-main);
   outline-offset: 3px;
 }
+
+.hidden {
+  display: none;
+}
