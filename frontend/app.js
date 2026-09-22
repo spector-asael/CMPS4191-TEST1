@@ -62,38 +62,79 @@ function startPolling(statusUrl) {
   stopPolling();
 
   const controller = new AbortController();
-  const timer = setInterval(() => poll(statusUrl, controller.signal), 1000); // ~1 sec interval
+  
+  const timer = setTimeout(() => {
+    poll(statusUrl, controller);
+  }, 1000);
 
-  setState({ pollingTimer: timer, abortController: controller });
+  setState({
+    pollingTimer: timer,
+    abortController: controller,
+  });
 }
 
 function stopPolling() {
   const { pollingTimer, abortController } = getState();
-  if (pollingTimer) clearInterval(pollingTimer);
-  if (abortController) {
-    abortController.abort(); // Instantly cancels active GET fetch in DevTools (POLL-06)
+
+  if (pollingTimer !== null) {
+    clearTimeout(pollingTimer);
   }
-  setState({ pollingTimer: null, abortController: null });
+
+  if (abortController) {
+    abortController.abort();
+  }
+
+  setState({
+    pollingTimer: null,
+    abortController: null,
+  });
 }
 
-async function poll(statusUrl, signal) {
+async function poll(statusUrl, controller) {
+  // Does this request still belong to the currrent observation?
+  const isCurrent = () =>
+    getState().abortController === controller && !controller.signal.aborted;
+
+  if (!isCurrent()) return;
+
   try {
-    const jobData = await DataService.fetchJobStatus(statusUrl, signal);
+    const jobData = await DataService.fetchJobStatus(
+      statusUrl,
+      controller.signal,
+    );
 
-    const mergedJob = { ...jobData, status_url: statusUrl };
+    // The user might have switched images while we waited.
+    if (!isCurrent()) return;
 
-    // Server processed job (completed or failed)
+    const mergedJob = {
+      ...jobData,
+      status_url: statusUrl,
+    };
+
     if (jobData.status === "completed" || jobData.status === "failed") {
-      stopPolling(); // Stop polling when terminal state is reached (POLL-05)
-      setState({ activeJob: mergedJob, variants: jobData.variants || [] });
-    } else {
-      setState({ activeJob: mergedJob }); // queued or processing
-    }
-  } catch (err) {
-    // Ignore aborted fetch errors caused by stopPolling()
-    if (err.name === "AbortError") return;
+      stopPolling();
 
-    // Retrieval Error Policy: Stop polling, preserve job, show "Try again" (POLL-07 to POLL-10)
+      setState({
+        activeJob: mergedJob,
+        variants: jobData.variants || [],
+      });
+
+      return;
+    }
+
+    // The job is still running. Update its display status.
+    setState({ activeJob: mergedJob });
+
+    // Only now schedule the next check.
+    const timer = setTimeout(() => {
+      poll(statusUrl, controller);
+    }, 1000);
+
+    setState({ pollingTimer: timer });
+  } catch (err) {
+    // An old or deliberately cancelled request should do nothing.
+    if (!isCurrent() || err.name === "AbortError") return;
+
     stopPolling();
     setState({ observationError: true });
   }
