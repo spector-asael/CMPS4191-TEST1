@@ -14,6 +14,8 @@ emitter.on('stateChanged', (state) => {
   const variantsContainer = document.getElementById('variants-container');
   const labelComplete = document.getElementById('label-complete');
   const jobError = document.getElementById('job-error');
+  const pollingIndicator = document.getElementById('polling-indicator');
+  const jobWorkText = document.getElementById('job-work-text');
 
   // Render Immediate Upload Error Banner (VAL-05)
   if (state.uploadError) {
@@ -43,6 +45,30 @@ emitter.on('stateChanged', (state) => {
 
   // 3. Render Button State (UI-02, UI-08)
   const isJobActive = state.activeJob && (state.activeJob.status === 'queued' || state.activeJob.status === 'processing');
+  
+  // Show this only while the app is observing an unfinished job.
+  const isPolling =
+    isJobActive &&
+    state.abortController !== null &&
+    !state.observationError;
+  
+  pollingIndicator.classList.toggle('hidden', !isPolling);
+
+  // Explain what is happening to the current job.
+  if (state.observationError) {
+    jobWorkText.textContent = 'Status checks paused. The job may still be running.';
+  } else if (state.activeJob?.status === 'queued') {
+    jobWorkText.textContent = 'Waiting for processing to start.';
+  } else if (state.activeJob?.status === 'processing') {
+    jobWorkText.textContent = 'Generating image variants.';
+  } else if (state.activeJob?.status === 'completed') {
+    jobWorkText.textContent = 'Your images are ready below.';
+  } else if (state.activeJob?.status === 'failed') {
+    jobWorkText.textContent = 'Image processing failed. See the error below.';
+  } else {
+    jobWorkText.textContent = '';
+  }
+
   processBtn.disabled = !state.selectedFile || state.isSubmitting || isJobActive;
   if (state.isSubmitting) {
     processBtn.textContent = 'Uploading...';
