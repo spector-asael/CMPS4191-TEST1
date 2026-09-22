@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -50,10 +51,18 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 4. Persist image record in database to obtain generated image.ID
-	storedFilename := "original.jpg"
+	extension := ".jpg"
 	if mimeType == "image/png" {
-		storedFilename = "original.png"
+		extension = ".png"
 	}
+
+	randomBytes := make([]byte, 16)
+	if _, err := rand.Read(randomBytes); err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	storedFilename := fmt.Sprintf("%x%s", randomBytes, extension)
 	image := &data.Image{
 		OriginalFilename: header.Filename,
 		StoredFilename:   storedFilename,
