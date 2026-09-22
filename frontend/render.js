@@ -191,7 +191,12 @@ emitter.on('stateChanged', (state) => {
       img.src = variant.url.startsWith('http') ? variant.url : `${API_BASE_URL}${variant.url}`;
       img.alt = variant.name;
 
-      card.append(img, title, meta);
+      const link = document.createElement("a");
+      link.href = img.src;
+      link.textContent = "View image";
+      link.target = "_blank";
+      link.rel = "noopener";
+      card.append(img, title, meta, link);
       variantsContainer.appendChild(card);
     });
   } else if (!state.activeJob || state.activeJob.status !== 'completed') {
