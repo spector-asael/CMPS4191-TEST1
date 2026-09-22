@@ -1,116 +1,138 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ImageLab - Asynchronous Image Processing</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-
-  <!-- OUTER DIV: Wraps headers, title, and inner grid -->
-  <div class="outer-container">
-    
-    <header class="app-header">
-      <div class="brand">
-        <h1>🧪 ImageLab</h1>
-        <span>Asynchronous Image Processing</span>
-      </div>
-      <div class="workspace-badge">• LOCAL workspace</div>
-    </header>
-
-    <section class="hero-section">
-      <h2>Process an image</h2>
-      <p>Upload an image and generate optimized variants in the background.</p>
-    </section>
-
-    <!-- INNER DIV: 6-Column CSS Grid -->
-    <div class="inner-grid">
-      
-      <!-- TOP LEFT CARD: Upload (Spans 3 Columns, Rows 1-2)    -->
-      <div class="grid-card upload-card">
-        <h3>Upload image</h3>
-        
-        <div class="preview-box flex-container">
-          <img id="preview-img" src="" alt="Preview" class="hidden" />
-          <div class="file-info flex-container">
-            <input type="file" id="file-input" accept="image/jpeg, image/png" hidden /> 
-          </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ImageLab - Asynchronous Image Processing</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- OUTER DIV: Wraps headers, title, and inner grid -->
+    <div class="outer-container">
+      <header class="app-header">
+        <div class="brand">
+          <h1>🧪 ImageLab</h1>
+          <span>Asynchronous Image Processing</span>
         </div>
-        <div id="options">
-          
+        <div class="workspace-badge">• LOCAL workspace</div>
+      </header>
+
+      <section class="hero-section">
+        <h2>Process an image</h2>
+        <p>
+          Upload an image and generate optimized variants in the background.
+        </p>
+      </section>
+
+      <!-- INNER DIV: 6-Column CSS Grid -->
+      <div class="inner-grid">
+        <!-- TOP LEFT CARD: Upload (Spans 3 Columns, Rows 1-2)    -->
+        <div class="grid-card upload-card">
+          <h3>Upload image</h3>
+
+          <div class="preview-box flex-container">
+            <img id="preview-img" src="" alt="Preview" class="hidden" />
             <div class="file-info flex-container">
-            <span id="file-name">No file selected</span>   
-            <span id="file-meta"></span>   
+              <input
+                type="file"
+                id="file-input"
+                accept="image/jpeg, image/png"
+                hidden
+              />
+            </div>
           </div>
-          <label for="file-input" class="btn-secondary">Choose image</label> 
-          <button id="process-btn" class="btn-primary" disabled>Process image</button>
-          <div id="upload-error" class="error-banner hidden"></div>   
-        </div>
-      </div>
-
-      <!-- TOP RIGHT CARD: Job Details & Timeline (Spans 3 Columns, Rows 1-2)    -->
-      <div class="grid-card job-card">
-        <div class="card-header flex-container">
-          <div>
-            <h3>Processing job</h3>
-            <span class="label">Job ID</span>
-            <h4 id="job-id">#--</h4>   
+          <div id="options">
+            <div class="file-info flex-container">
+              <span id="file-name">No file selected</span>
+              <span id="file-meta"></span>
+            </div>
+            <label for="file-input" class="btn-secondary">Choose image</label>
+            <button id="process-btn" class="btn-primary" disabled>
+              Process image
+            </button>
+            <div id="upload-error" class="error-banner hidden"></div>
           </div>
-          <span id="job-status" class="badge">No active job</span>   
         </div>
 
-        <div aria-live="polite">
-          <p id="polling-indicator" class=""hidden>
-            Checking for updates...
-          </p>
+        <!-- TOP RIGHT CARD: Job Details & Timeline (Spans 3 Columns, Rows 1-2)    -->
+        <div class="grid-card job-card">
+          <div class="card-header flex-container">
+            <div>
+              <h3>Processing job</h3>
+              <span class="label">Job ID</span>
+              <h4 id="job-id">#--</h4>
+            </div>
+            <span id="job-status" class="badge">No active job</span>
+          </div>
 
-          <p id="job-work-text"></p>
+          <div aria-live="polite">
+            <p id="polling-indicator" class="hidden">
+              Checking status automatically<br />
+              <small>Every 1 second</small>
+            </p>
+
+            <p id="job-work-text"></p>
+          </div>
+
+          <ul class="timeline flex-container">
+            <li id="step-upload" class="step-item flex-container">
+              <span class="step-icon">✓</span>
+              <div>
+                <strong>Upload accepted</strong
+                ><small id="time-upload">--</small>
+              </div>
+            </li>
+            <li id="step-stored" class="step-item flex-container">
+              <span class="step-icon">✓</span>
+              <div>
+                <strong>Original stored</strong
+                ><small id="time-stored">--</small>
+              </div>
+            </li>
+            <li id="step-variants" class="step-item flex-container">
+              <span class="step-icon">⚙</span>
+              <div>
+                <strong>Generating variants</strong
+                ><small id="time-variants">--</small>
+              </div>
+            </li>
+            <li id="step-complete" class="step-item flex-container">
+              <span class="step-icon">○</span>
+              <div>
+                <strong id="label-complete">Complete</strong
+                ><small id="time-complete">--</small>
+              </div>
+            </li>
+          </ul>
+
+          <div id="job-error" class="error-banner hidden"></div>
+
+          <!-- Retry Container for Observation Errors    -->
+          <div
+            id="try-again-container"
+            class="flex-container"
+            style="display: none"
+          >
+            <span>Unable to check status. The job may still be running.</span>
+            <button id="try-again-btn" class="btn-secondary">Try again</button>
+          </div>
         </div>
 
-        <ul class="timeline flex-container">
-          <li id="step-upload" class="step-item flex-container">
-            <span class="step-icon">✓</span>
-            <div><strong>Upload accepted</strong><small id="time-upload">--</small></div>   
-          </li>
-          <li id="step-stored" class="step-item flex-container">
-            <span class="step-icon">✓</span>
-            <div><strong>Original stored</strong><small id="time-stored">--</small></div>   
-          </li>
-          <li id="step-variants" class="step-item flex-container">
-            <span class="step-icon">⚙</span>
-            <div><strong>Generating variants</strong><small id="time-variants">--</small></div>   
-          </li>
-          <li id="step-complete" class="step-item flex-container">
-            <span class="step-icon">○</span>
-            <div><strong id="label-complete">Complete</strong><small id="time-complete">--</small></div>   
-          </li>
-        </ul>
+        <!-- BOTTOM PANEL: Variant Output Grid (Spans All 6 Columns, Row 3)    -->
+        <div class="grid-card results-card">
+          <h3>Generated images</h3>
 
-        <div id="job-error" class="error-banner hidden"></div>
-        
-        <!-- Retry Container for Observation Errors    -->
-        <div id="try-again-container" class="flex-container" style="display: none;">
-          <span>Unable to check status. The job may still be running.</span>   
-          <button id="try-again-btn" class="btn-secondary">Try again</button>   
+          <!-- Nested Grid for 3 Variant Items (2 Columns Each)    -->
+          <div id="variants-container" class="variants-grid">
+            <p class="empty-state">No images generated yet.</p>
+          </div>
         </div>
       </div>
+      <!-- /inner-grid -->
+    </div>
+    <!-- /outer-container -->
 
-      <!-- BOTTOM PANEL: Variant Output Grid (Spans All 6 Columns, Row 3)    -->
-      <div class="grid-card results-card">
-        <h3>Generated images</h3>
-        
-        <!-- Nested Grid for 3 Variant Items (2 Columns Each)    -->
-        <div id="variants-container" class="variants-grid">
-          <p class="empty-state">No images generated yet.</p>   
-        </div>
-      </div>
-
-    </div> <!-- /inner-grid -->
-  </div> <!-- /outer-container -->
-
-  <script type="module" src="render.js"></script>
-  <script type="module" src="app.js"></script>
-</body>
+    <script type="module" src="render.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
 </html>
