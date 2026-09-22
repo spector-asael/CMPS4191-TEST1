@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/lewisdalwin/gatekeeper/internal/data"
 )
@@ -51,7 +50,10 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 4. Persist image record in database to obtain generated image.ID
-	storedFilename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filepath.Base(header.Filename))
+	storedFilename := "original.jpg"
+	if mimeType == "image/png" {
+		storedFilename = "original.png"
+	}
 	image := &data.Image{
 		OriginalFilename: header.Filename,
 		StoredFilename:   storedFilename,
