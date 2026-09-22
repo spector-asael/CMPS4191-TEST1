@@ -16,7 +16,21 @@ export const DataService = {
       throw new Error(errData.error || `Upload failed with status ${response.status}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+
+    const expectedStates = ["queued", "processing", "completed", "failed"];
+
+    // Check that the answer contains a nonempty job ID.
+    if (!data || typeof data.id !== "string" || data.id.trim() === "") {
+      throw new Error("Status response is missing a usable job ID");
+    }
+
+    // Check that the status is one our app understands.
+    if (!expectedStates.includes(data.status)) {
+      throw new Error("Status response contains an unexpected status");
+    }
+
+    return data;
   },
 
   async fetchJobStatus(statusUrl, signal) {

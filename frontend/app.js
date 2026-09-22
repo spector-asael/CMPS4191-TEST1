@@ -106,6 +106,13 @@ async function poll(statusUrl, controller) {
     // The user might have switched images while we waited.
     if (!isCurrent()) return;
 
+    const activeJob = getState().activeJob;
+    const expectedJobId = activeJob?.job_id ?? activeJob?.id;
+
+    if (jobData.id !== expectedJobId) {
+      throw new Error("Status response belongs to a different job");
+    }
+
     const mergedJob = {
       ...jobData,
       status_url: statusUrl,
