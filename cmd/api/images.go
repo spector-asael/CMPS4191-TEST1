@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"net/http"
 	"os"
@@ -13,40 +14,83 @@ import (
 )
 
 func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Request) {
-	// 1. Enforce 10 MB limit on request body (VAL-01)
-	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+	// 1. Limit the image to 10 MiB, with extra room for form packaging.
+	const maxImageSize = 10 << 20
+	const maxRequestSize = maxImageSize + (1 << 20)
 
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		app.badRequestResponse(w, r, fmt.Errorf("file size exceeds 10 MB limit"))
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
+
+	if err := r.ParseMultipartForm(maxImageSize); err != nil {
+		var sizeError *http.MaxBytesError
+
+		if errors.As(err, &sizeError) {
+			app.badRequestResponse(w, r,
+				fmt.Errorf("upload request is too large"))
+		} else {
+			app.badRequestResponse(w, r,
+				fmt.Errorf("invalid multipart upload"))
+		}
+		return
+	}
+	defer r.MultipartForm.RemoveAll()
+
+	// 2. Require exactly one uploaded file, in the "image" field.
+	files := r.MultipartForm.File["image"]
+	fileCount := 0
+	for _, uploadedFiles := range r.MultipartForm.File {
+		fileCount += len(uploadedFiles)
+	}
+
+	if len(files) != 1 || fileCount != 1 {
+		app.badRequestResponse(w, r,
+			fmt.Errorf("provide exactly one file in the 'image' field"))
 		return
 	}
 
-	// 2. Extract image file from form field
-	file, header, err := r.FormFile("image")
+	header := files[0]
+
+	if header.Size == 0 {
+		app.badRequestResponse(w, r,
+			fmt.Errorf("image file must not be empty"))
+		return
+	}
+
+	if header.Size > maxImageSize {
+		app.badRequestResponse(w, r,
+			fmt.Errorf("file size exceeds 10 MB limit"))
+		return
+	}
+
+	file, err := header.Open()
 	if err != nil {
-		app.badRequestResponse(w, r, fmt.Errorf("missing 'image' form field"))
+		app.serverErrorResponse(w, r, err)
 		return
 	}
 	defer file.Close()
 
-	// 3. Validate MIME type by reading header bytes
-	buf := make([]byte, 512)
-	if _, err := file.Read(buf); err != nil {
-		app.badRequestResponse(w, r, err)
+	// 3. Decode the contents before accepting the image.
+	_, format, err := image.Decode(file)
+	if err != nil {
+		app.badRequestResponse(w, r,
+			fmt.Errorf("upload must be a readable JPEG or PNG image"))
 		return
 	}
 
-	// Reset file reader pointer after sniffing content type
+	var mimeType string
+	switch format {
+	case "jpeg":
+		mimeType = "image/jpeg"
+	case "png":
+		mimeType = "image/png"
+	default:
+		app.badRequestResponse(w, r,
+			fmt.Errorf("only JPEG and PNG images are allowed"))
+		return
+	}
+
+	// Return to the beginning so the original can be copied in full.
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	mimeType := http.DetectContentType(buf)
-	switch mimeType {
-	case "image/jpeg", "image/png":
-	default:
-		app.badRequestResponse(w, r, fmt.Errorf("unsupported file type: %s (only JPEG and PNG are allowed)", mimeType))
 		return
 	}
 
