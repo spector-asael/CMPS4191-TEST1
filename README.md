@@ -19,8 +19,8 @@ Work is accepted durably via `202 Accepted`, processed independently by an in-pr
 ## Prerequisites & Setup
 
 ### Requirements
-- **Go** (1.23+ / 1.25)
-- **PostgreSQL** (14+)
+- **Go** (1.26 or compatible newer tooling)
+- **PostgreSQL** (18)
 - **golang-migrate CLI**
 - **Node.js** (for `npx http-server` frontend hosting)
 
@@ -29,16 +29,30 @@ Copy the example environment file and set your PostgreSQL DSN:
 ```bash
 cp .envrc.example .envrc
 # Edit .envrc with your database credentials:
-# export GATEKEEPER_DB_DSN='postgres://user:password@localhost:5432/imagelab?sslmode=disable'
+# export GATEKEEPER_DB_DSN='postgres://gatekeeper:YOUR_PASSWORD@localhost:5432/imagelab?sslmode=disable'
 source .envrc
 ```
 
 ### 2. Database Setup & Migrations
-Create your database and run migrations:
-```bash
-createdb imagelab
+Create once, using the PostgreSQL administrator account.
+Assumes the gatekeeper database login already exists.
+
+```
+sudo -u postgres psql -c "CREATE DATABASE imagelab OWNER gatekeeper;"
+```
+
+Verify the connection settings loaded from .envrc.
+
+```
+psql "$GATEKEEPER_DB_DSN" -c "SELECT current_database(), current_user;"
+```
+
+Create the application tables. Enter y when prompted.
+```
 make db/migrations/up
 ```
+
+The connection check should show database `imagelab` and user `gatekeeper`.
 
 ---
 
