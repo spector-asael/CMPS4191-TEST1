@@ -20,33 +20,73 @@ export const DataService = {
     return await response.json();
   },
 
-  async fetchJobStatus(statusUrl, signal) {
+  async fetchJobStatus(statusUrl, signal, timeoutMs = 5000) {
     const url = statusUrl.startsWith("http")
       ? statusUrl
       : `${API_BASE_URL}${statusUrl}`;
 
-    const response = await fetch(url, { signal });
+    // This controller belongs to this individual request.
+    const requestController = new AbortController();
+    let timedOut = false;
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      throw new Error(
-        errData.error || `Failed to observe job: ${response.status}`,
-      );
+    // Forward deliberate cancellation from the polling loop.
+    const cancelRequest = () => {
+      requestController.abort();
+    };
+
+    if (signal?.aborted) {
+      cancelRequest();
+    } else {
+      signal?.addEventListener("abort", cancelRequest, { once: true });
     }
 
-    // Validate the status answer here, after a GET.
-    const data = await response.json();
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      requestController.abort();
+    }, timeoutMs);
 
-    const expectedStates = ["queued", "processing", "completed", "failed"];
+    try {
+      const response = await fetch(url, {
+        signal: requestController.signal,
+      });
 
-    if (!data || typeof data.id !== "string" || data.id.trim() === "") {
-      throw new Error("Status response is missing a usable job ID");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(
+          errData.error || `Failed to observe job: ${response.status}`,
+        );
+      }
+
+      const data = await response.json();
+
+      const expectedStates = ["queued", "processing", "completed", "failed"];
+
+      if (!data || typeof data.id !== "string" || data.id.trim() === "") {
+        throw new Error("Status response is missing a usable job ID");
+      }
+
+      if (!expectedStates.includes(data.status)) {
+        throw new Error("Status response contains an unexpected status");
+      }
+
+      return data;
+    } catch (err) {
+      // Switching jobs or leaving the page is deliberate cancellation.
+      if (signal?.aborted) {
+        throw err;
+      }
+
+      // A timeout must reach the polling loop as an observation error.
+      if (timedOut) {
+        const timeoutError = new Error("Status request timed out");
+        timeoutError.name = "TimeoutError";
+        throw timeoutError;
+      }
+
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", cancelRequest);
     }
-
-    if (!expectedStates.includes(data.status)) {
-      throw new Error("Status response contains an unexpected status");
-    }
-
-    return data;
   },
 };
