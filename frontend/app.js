@@ -1,5 +1,6 @@
 import { getState, setState } from "./state.js";
 import { DataService } from "./modules/data-service.js";
+import { buildMeasurement } from "./modules/measurements.js";
 
 // Elements
 const fileInput = document.getElementById("file-input");
@@ -12,99 +13,96 @@ window.addEventListener("beforeunload", () => {
   stopPolling();
 });
 
-  // Track selections so an older image check cannot replace a newer one.
-  let selectionVersion = 0;
+// Track selections so an older image check cannot replace a newer one.
+let selectionVersion = 0;
 
-  // Preview Image Selection (UI-05, UI-06)
-  fileInput.addEventListener("change", async (e) => {
-    if (getState().isSubmitting) return;
+// Preview Image Selection (UI-05, UI-06)
+fileInput.addEventListener("change", async (e) => {
+  if (getState().isSubmitting) return;
 
-    const file = e.target.files[0];
-    if (!file) return;
+  const file = e.target.files[0];
+  if (!file) return;
 
-    const thisSelection = ++selectionVersion;
-    const maxImageSize = 10 * 1024 * 1024;
-    const allowedTypes = ["image/jpeg", "image/png"];
+  const thisSelection = ++selectionVersion;
+  const maxImageSize = 10 * 1024 * 1024;
+  const allowedTypes = ["image/jpeg", "image/png"];
 
-    let error = null;
+  let error = null;
 
-    if (file.size === 0) {
-      error = "This file is empty. Choose a JPEG or PNG image.";
-    } else if (!allowedTypes.includes(file.type)) {
-      error = "Choose a JPEG or PNG image.";
-    } else if (file.size > maxImageSize) {
-      error = "This image exceeds the 10 MB limit. Choose a smaller image.";
-    }
+  if (file.size === 0) {
+    error = "This file is empty. Choose a JPEG or PNG image.";
+  } else if (!allowedTypes.includes(file.type)) {
+    error = "Choose a JPEG or PNG image.";
+  } else if (file.size > maxImageSize) {
+    error = "This image exceeds the 10 MB limit. Choose a smaller image.";
+  }
 
-    if (error) {
-      fileInput.value = "";
-      setState({
-        selectedFile: null,
-        isValidating: false,
-        uploadError: error,
-      });
-      return;
-    }
-
+  if (error) {
+    fileInput.value = "";
     setState({
       selectedFile: null,
-      isValidating: true,
-      uploadError: null,
+      isValidating: false,
+      uploadError: error,
     });
+    return;
+  }
 
-    let checkUrl = null;
+  setState({
+    selectedFile: null,
+    isValidating: true,
+    uploadError: null,
+  });
 
-    try {
-      checkUrl = URL.createObjectURL(file);
+  let checkUrl = null;
 
-      const imageCheck = new Image();
-      imageCheck.src = checkUrl;
-      await imageCheck.decode();
-    } catch {
-      // Ignore a result belonging to an older selection.
-      if (thisSelection !== selectionVersion) return;
+  try {
+    checkUrl = URL.createObjectURL(file);
 
-      fileInput.value = "";
-      setState({
-        selectedFile: null,
-        isValidating: false,
-        uploadError:
-          "This image could not be read. It may be damaged. Choose another JPEG or PNG.",
-      });
-      return;
-    } finally {
-      if (checkUrl !== null) {
-        URL.revokeObjectURL(checkUrl);
-      }
-    }
-
+    const imageCheck = new Image();
+    imageCheck.src = checkUrl;
+    await imageCheck.decode();
+  } catch {
+    // Ignore a result belonging to an older selection.
     if (thisSelection !== selectionVersion) return;
 
-    // Only a readable new selection replaces the previous observation.
-    stopPolling();
-
+    fileInput.value = "";
     setState({
-      selectedFile: file,
+      selectedFile: null,
       isValidating: false,
-      uploadError: null,
-      activeJob: null,
-      variants: [],
-      observationError: false,
-      metrics: {
-        requestStart: null,
-        ackLatency: null,
-      },
+      uploadError:
+        "This image could not be read. It may be damaged. Choose another JPEG or PNG.",
     });
+    return;
+  } finally {
+    if (checkUrl !== null) {
+      URL.revokeObjectURL(checkUrl);
+    }
+  }
+
+  if (thisSelection !== selectionVersion) return;
+
+  // Only a readable new selection replaces the previous observation.
+  stopPolling();
+
+  setState({
+    selectedFile: file,
+    isValidating: false,
+    uploadError: null,
+    activeJob: null,
+    variants: [],
+    observationError: false,
+    metrics: {
+      requestStart: null,
+      ackLatency: null,
+      pollingCount: 0,
+      completionObservedAt: null,
+    },
   });
+});
 
 // Primary Upload Submission Handler (SUB-01, SUB-02)
 processBtn.addEventListener("click", async () => {
-  const {
-  isSubmitting,
-  isValidating,
-  selectedFile,
-  activeJob,
-} = getState();
+  const { isSubmitting, isValidating, selectedFile, activeJob } = getState();
   const isJobActive =
     activeJob &&
     (activeJob.status === "queued" || activeJob.status === "processing");
@@ -122,7 +120,12 @@ processBtn.addEventListener("click", async () => {
 
     setState({
       activeJob: data,
-      metrics: { requestStart, ackLatency },
+      metrics: {
+        requestStart,
+        ackLatency,
+        pollingCount: 0,
+        completionObservedAt: null,
+      },
     });
 
     startPolling(data.status_url); // POLL-01
@@ -181,11 +184,20 @@ async function poll(statusUrl, controller) {
 
   if (!isCurrent()) return;
 
+  setState({
+    metrics: {
+      ...getState().metrics,
+      pollingCount: getState().metrics.pollingCount + 1,
+    },
+  });
+
   try {
     const jobData = await DataService.fetchJobStatus(
       statusUrl,
       controller.signal,
     );
+
+    const responseObservedAt = Date.now();
 
     // The user might have switched images while we waited.
     if (!isCurrent()) return;
@@ -203,15 +215,27 @@ async function poll(statusUrl, controller) {
     };
 
     if (jobData.status === "completed" || jobData.status === "failed") {
-      stopPolling();
+  stopPolling();
 
-      setState({
-        activeJob: mergedJob,
-        variants: jobData.variants || [],
-      });
+  setState({
+    activeJob: mergedJob,
+    variants: jobData.variants || [],
+    metrics: {
+      ...getState().metrics,
+      completionObservedAt:
+        jobData.status === "completed" ? responseObservedAt : null,
+    },
+  });
 
-      return;
-    }
+  const measurement = buildMeasurement(
+    mergedJob,
+    getState().metrics,
+  );
+
+  console.table([measurement]);
+
+  return;
+}
 
     // The job is still running. Update its display status.
     setState({ activeJob: mergedJob });

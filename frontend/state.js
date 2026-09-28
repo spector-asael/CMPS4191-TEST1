@@ -1,4 +1,4 @@
-import { emitter } from './modules/event-emitter.js';
+import { emitter } from "./modules/event-emitter.js";
 
 const state = {
   selectedFile: null,
@@ -10,7 +10,12 @@ const state = {
   pollingTimer: null,
   abortController: null, // For cancelling fetch requests on reset
   observationError: false, // Distinguishes GET failure from job failure[cite: 1]
-  metrics: { requestStart: null, ackLatency: null }, // Latency measurements[cite: 1]
+  metrics: {
+    requestStart: null,
+    ackLatency: null,
+    pollingCount: 0,
+    completionObservedAt: null,
+  },
 };
 
 export function getState() {
@@ -19,5 +24,5 @@ export function getState() {
 
 export function setState(updates) {
   Object.assign(state, updates);
-  emitter.emit('stateChanged', state);
+  emitter.emit("stateChanged", state);
 }

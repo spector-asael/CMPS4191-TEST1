@@ -1,9 +1,84 @@
 import { emitter } from "./modules/event-emitter.js";
 import { API_BASE_URL } from "./modules/data-service.js";
+import { buildMeasurement } from "./modules/measurements.js";
 let previewFile = null;
 let previewUrl = null;
 
 emitter.on("stateChanged", (state) => {
+    const measurementsPanel = document.getElementById("measurements-panel");
+    const measurementsGrid = document.getElementById("measurements-grid");
+
+    const showMeasurements =
+      !state.isSubmitting &&
+      !state.isValidating &&
+      state.activeJob &&
+      ["completed", "failed"].includes(state.activeJob.status);
+
+    measurementsPanel.classList.toggle("hidden", !showMeasurements);
+    measurementsGrid.replaceChildren();
+
+    if (showMeasurements) {
+      const measurement = buildMeasurement(state.activeJob, state.metrics);
+
+      const formatDuration = (value) => {
+        if (!Number.isFinite(value)) return "—";
+
+        return Math.abs(value) < 1000
+          ? `${value.toFixed(1)} ms`
+          : `${(value / 1000).toFixed(3)} s`;
+      };
+
+      const items = [
+        {
+          label: "Acknowledgement",
+          value: formatDuration(measurement.acknowledgement_ms),
+          description: "Upload start to validated acceptance reply.",
+        },
+        {
+          label: "Queue wait",
+          value: formatDuration(measurement.queue_wait_ms),
+          description: "Time waiting for the worker to start.",
+        },
+        {
+          label: "Processing",
+          value: formatDuration(measurement.processing_ms),
+          description: "Worker start to success or failure.",
+        },
+        {
+          label: "Job duration",
+          value: formatDuration(measurement.job_duration_ms),
+          description: "Queue entry to successful completion.",
+        },
+        {
+          label: "Status requests",
+          value: String(measurement.polling_count),
+          description: "Status checks attempted for this job.",
+        },
+        {
+          label: "Detection delay",
+          value: formatDuration(measurement.detection_delay_ms),
+          description: "Server completion to browser observation.",
+        },
+      ];
+
+      for (const item of items) {
+        const tile = document.createElement("div");
+        tile.className = "measurement-tile";
+
+        const label = document.createElement("dt");
+        label.textContent = item.label;
+
+        const value = document.createElement("dd");
+        value.textContent = item.value;
+
+        const description = document.createElement("dd");
+        description.className = "measurement-description";
+        description.textContent = item.description;
+
+        tile.append(label, value, description);
+        measurementsGrid.appendChild(tile);
+      }
+    }
   // 1. Target elements from index.html
   const previewImg = document.getElementById("preview-img");
   const fileName = document.getElementById("file-name");

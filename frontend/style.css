@@ -929,3 +929,87 @@ a:focus-visible {
   background: rgba(255, 255, 255, 0.025);
   border-color: var(--card-border-dashed);
 }
+
+/* Run measurements */
+.measurements-card {
+  grid-column: 1 / -1;
+  min-width: 0;
+  background:
+    radial-gradient(
+      ellipse at top right,
+      rgba(124, 58, 237, 0.09),
+      transparent 65%
+    ),
+    #1c232d;
+}
+
+.measurements-card h3 {
+  margin: 0.5rem 0;
+}
+
+.measurements-intro,
+.measurements-note {
+  color: #a6b8cf;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.measurements-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.measurement-tile {
+  padding: 1.25rem;
+  border: 1px solid rgba(167, 139, 250, 0.18);
+  border-radius: 14px;
+  background: rgba(13, 18, 27, 0.4);
+}
+
+.measurement-tile dt {
+  color: #c4b5fd;
+  font-size: 0.8rem;
+}
+
+.measurement-tile dd {
+  margin: 0.6rem 0;
+  color: #f4f3ff;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.measurement-description {
+  margin: 0;
+  color: #a6b8cf;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.measurements-note {
+  margin-bottom: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--card-border);
+}
+
+@media (max-width: 700px) {
+  .measurements-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .measurements-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.measurement-tile dd.measurement-description {
+  margin: 0;
+  color: #a6b8cf;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
