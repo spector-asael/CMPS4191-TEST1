@@ -1,2 +1,10 @@
+# ImageLab acceptance checklist
+
 | Requirement | Steps performed | Expected result | Actual result | Pass/Fail | Evidence |
 |---|---|---|---|---|---|
+| Initial page | Reloaded page and watched Network for 5 seconds | No selected image, active job, results, or polling | No image, active job, results, upload requests, or status requests appeared | Pass | [Initial state](evidence/01-initial-state.png) |
+| Local preview without upload | Selected a valid image without clicking Process image; watched Network for 5 seconds | Preview and file details appear without uploading or polling | Preview and file details appeared; no upload POST or status GET was sent | Pass | [Local preview](evidence/02-local-preview.png) |
+| Accepted response | Submitted one image; inspected POST Headers and Response | HTTP 202 with image_id, job_id, queued status, status_url, and matching Location | Response contained all required fields; Location matched status_url and job_id | Pass | [Headers](evidence/03-upload-headers.png), [Response](evidence/04-upload-response.png) |
+| Saved job and timestamps | Queried the accepted job by its public ID | Matching image ID, completed status, ordered queue/start/completion timestamps, and no failure timestamp | Matching job found; timestamps were ordered and failed_at was empty | Pass | [Job record](evidence/05-job-record.txt) |
+| Saved variant metadata | Queried variants belonging to the accepted image | Three named variants with expected dimensions and positive sizes | Found thumbnail 150×150, preview 800×600, and display 1200×900; all sizes positive | Pass | [Variant records](evidence/06-variant-records.txt) |
+| Stored image files | Listed the accepted image’s folder and compared variant sizes with database records | One original and three variants; variant sizes match stored metadata | All four files present; all three variant sizes matched database records | Pass | [Stored files](evidence/07-stored-files.txt) |

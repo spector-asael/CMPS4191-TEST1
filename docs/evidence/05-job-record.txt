@@ -1,0 +1,8 @@
+-[ RECORD 1 ]+-------------------------------------
+public_id    | 0400e9c6-2331-460e-adf4-fe4eac8708bd
+image_id     | 01a0e95a-3207-705b-a826-8448e74b75ea
+status       | completed
+queued_at    | 2026-09-28 12:49:57.51051-06
+started_at   | 2026-09-28 12:49:57.760215-06
+completed_at | 2026-09-28 12:50:05.621761-06
+failed_at    |

@@ -1,0 +1,6 @@
+   name    |                  stored_filename                   | width | height |  size
+-----------+----------------------------------------------------+-------+--------+--------
+ display   | 01a0e95a-3207-705b-a826-8448e74b75ea-display.jpg   |  1200 |    900 | 168830
+ preview   | 01a0e95a-3207-705b-a826-8448e74b75ea-preview.jpg   |   800 |    600 |  87150
+ thumbnail | 01a0e95a-3207-705b-a826-8448e74b75ea-thumbnail.jpg |   150 |    150 |   8147
+(3 rows)
