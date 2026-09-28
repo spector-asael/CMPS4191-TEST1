@@ -1,5 +1,21 @@
 export const API_BASE_URL = "http://localhost:4000";
 
+function hasText(value) {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+function matchesApiPath(value, expectedPath) {
+  if (!hasText(value)) return false;
+
+  try {
+    const actual = new URL(value, API_BASE_URL);
+    const expected = new URL(expectedPath, API_BASE_URL);
+    return actual.href === expected.href;
+  } catch {
+    return false;
+  }
+}
+
 export const DataService = {
   async uploadImage(file) {
     const formData = new FormData();
@@ -17,7 +33,42 @@ export const DataService = {
       );
     }
 
-    return await response.json();
+        let data;
+
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error(
+            "The server returned 202 Accepted, but its reply could not be read. " +
+              "The image may already be queued; submitting again may create another job.",
+          );
+        }
+
+        if (
+          !data ||
+          !hasText(data.image_id) ||
+          !hasText(data.job_id) ||
+          data.status !== "queued"
+        ) {
+          throw new Error(
+            "The server returned 202 Accepted without usable job details. " +
+              "The image may already be queued; submitting again may create another job.",
+          );
+        }
+
+        const expectedPath = `/v1/jobs/${encodeURIComponent(data.job_id)}`;
+
+        if (
+          !matchesApiPath(data.status_url, expectedPath) ||
+          !matchesApiPath(response.headers.get("Location"), expectedPath)
+        ) {
+          throw new Error(
+            "The server returned 202 Accepted without a matching status address. " +
+              "The image may already be queued; submitting again may create another job.",
+          );
+        }
+
+        return data;
   },
 
   async fetchJobStatus(statusUrl, signal, timeoutMs = 5000) {
@@ -68,6 +119,78 @@ export const DataService = {
       if (!expectedStates.includes(data.status)) {
         throw new Error("Status response contains an unexpected status");
       }
+
+            if (data.status === "completed") {
+              if (!hasText(data.image_id)) {
+                throw new Error("Completed response is missing an image ID");
+              }
+
+              if (!Array.isArray(data.variants) || data.variants.length !== 3) {
+                throw new Error(
+                  "Completed response must contain three variants",
+                );
+              }
+
+              const requiredNames = new Set([
+                "thumbnail",
+                "preview",
+                "display",
+              ]);
+
+              for (const variant of data.variants) {
+                if (!variant || !requiredNames.delete(variant.name)) {
+                  throw new Error(
+                    "Completed response has duplicate or unknown variants",
+                  );
+                }
+
+                if (
+                  !Number.isInteger(variant.width) ||
+                  !Number.isInteger(variant.height) ||
+                  variant.width <= 0 ||
+                  variant.height <= 0
+                ) {
+                  throw new Error(
+                    "Variant dimensions must be positive whole numbers",
+                  );
+                }
+
+                if (
+                  variant.name === "thumbnail" &&
+                  (variant.width !== 150 || variant.height !== 150)
+                ) {
+                  throw new Error("Thumbnail dimensions must be 150 by 150");
+                }
+
+                if (
+                  variant.name === "preview" &&
+                  (variant.width > 800 || variant.height > 600)
+                ) {
+                  throw new Error(
+                    "Preview dimensions exceed the allowed bounds",
+                  );
+                }
+
+                if (
+                  variant.name === "display" &&
+                  (variant.width > 1200 || variant.height > 900)
+                ) {
+                  throw new Error(
+                    "Display dimensions exceed the allowed bounds",
+                  );
+                }
+
+                const expectedPath =
+                  `/v1/images/${encodeURIComponent(data.image_id)}` +
+                  `/variants/${variant.name}`;
+
+                if (!matchesApiPath(variant.url, expectedPath)) {
+                  throw new Error(
+                    "Variant URL does not match the completed image",
+                  );
+                }
+              }
+            }
 
       return data;
     } catch (err) {

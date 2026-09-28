@@ -69,3 +69,151 @@ test("a successful status response is returned normally", async (t) => {
 
   assert.deepEqual(result, expected);
 });
+
+function completedJob() {
+  return {
+    id: "test-job",
+    image_id: "test-image",
+    status: "completed",
+    variants: [
+      {
+        name: "thumbnail",
+        width: 150,
+        height: 150,
+        url: "/v1/images/test-image/variants/thumbnail",
+      },
+      {
+        name: "preview",
+        width: 800,
+        height: 600,
+        url: "/v1/images/test-image/variants/preview",
+      },
+      {
+        name: "display",
+        width: 1200,
+        height: 900,
+        url: "/v1/images/test-image/variants/display",
+      },
+    ],
+  };
+}
+
+test("a valid completed job is returned normally", async (t) => {
+  const expected = completedJob();
+
+  t.mock.method(globalThis, "fetch", async () => ({
+    ok: true,
+    json: async () => expected,
+  }));
+
+  const result = await DataService.fetchJobStatus("/v1/jobs/test-job");
+
+  assert.deepEqual(result, expected);
+});
+
+const invalidCompletedCases = [
+  {
+    name: "missing variant",
+    change: (job) => job.variants.pop(),
+    error: /must contain three variants/,
+  },
+  {
+    name: "duplicate variant",
+    change: (job) => {
+      job.variants[2] = { ...job.variants[0] };
+    },
+    error: /duplicate or unknown variants/,
+  },
+  {
+    name: "zero width",
+    change: (job) => {
+      job.variants[1].width = 0;
+    },
+    error: /positive whole numbers/,
+  },
+  {
+    name: "oversized preview",
+    change: (job) => {
+      job.variants[1].width = 801;
+    },
+    error: /Preview dimensions exceed/,
+  },
+  {
+    name: "download address belongs to another image",
+    change: (job) => {
+      job.variants[1].url = "/v1/images/another-image/variants/preview";
+    },
+    error: /URL does not match/,
+  },
+];
+
+for (const example of invalidCompletedCases) {
+  test(`completed response rejects ${example.name}`, async (t) => {
+    const reply = completedJob();
+    example.change(reply);
+
+    t.mock.method(globalThis, "fetch", async () => ({
+      ok: true,
+      json: async () => reply,
+    }));
+
+    await assert.rejects(
+      DataService.fetchJobStatus("/v1/jobs/test-job"),
+      example.error,
+    );
+  });
+}
+
+function acceptedUpload() {
+  return {
+    image_id: "test-image",
+    job_id: "test-job",
+    status: "queued",
+    status_url: "/v1/jobs/test-job",
+  };
+}
+
+test("a valid upload acknowledgement is returned normally", async (t) => {
+  const expected = acceptedUpload();
+
+  t.mock.method(globalThis, "fetch", async () => ({
+    status: 202,
+    headers: new Headers({ Location: "/v1/jobs/test-job" }),
+    json: async () => expected,
+  }));
+
+  const result = await DataService.uploadImage(
+    new Blob(["test"], { type: "image/png" }),
+  );
+
+  assert.deepEqual(result, expected);
+});
+
+test("an accepted upload with missing job details warns about resubmitting", async (t) => {
+  const reply = acceptedUpload();
+  delete reply.job_id;
+
+  t.mock.method(globalThis, "fetch", async () => ({
+    status: 202,
+    headers: new Headers({ Location: "/v1/jobs/test-job" }),
+    json: async () => reply,
+  }));
+
+  await assert.rejects(
+    DataService.uploadImage(new Blob(["test"])),
+    /without usable job details.*submitting again may create another job/,
+  );
+});
+
+test("an accepted upload rejects a mismatched Location", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => ({
+    status: 202,
+    headers: new Headers({ Location: "/v1/jobs/wrong-job" }),
+    json: async () => acceptedUpload(),
+  }));
+
+  await assert.rejects(
+    DataService.uploadImage(new Blob(["test"])),
+    /without a matching status address/,
+  );
+});
