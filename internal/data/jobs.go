@@ -12,12 +12,16 @@ import (
 
 // Variant matches the ImageLab API variant result structure (Section 10.2)
 type Variant struct {
-	Name   string `json:"name"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	URL    string `json:"url"`
+	ID             string    `json:"id,omitempty"`
+	ImageID        string    `json:"image_id,omitempty"`
+	Name           string    `json:"name"`
+	StoredFilename string    `json:"-"`
+	Width          int       `json:"width"`
+	Height         int       `json:"height"`
+	Size           int64     `json:"size"`
+	CreatedAt      time.Time `json:"created_at"`
+	URL            string    `json:"url"`
 }
-
 type Job struct {
 	ID           string          `json:"-"`
 	PublicID     string          `json:"id"`
@@ -135,13 +139,6 @@ func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 	return &job, nil
 }
 
-func (m JobModel) MarkCompleted(ctx context.Context, id string, result []byte) error {
-	_, err := m.DB.ExecContext(ctx,
-		`UPDATE jobs SET status = 'completed', result = $2, completed_at = now() WHERE id = $1`,
-		id, result)
-	return err
-}
-
 func (m JobModel) MarkFailed(ctx context.Context, id, message string) error {
 	_, err := m.DB.ExecContext(ctx,
 		`UPDATE jobs
@@ -149,7 +146,7 @@ func (m JobModel) MarkFailed(ctx context.Context, id, message string) error {
      error_message = $2,
      failed_at = now(),
      completed_at = NULL
- WHERE id = $1`,
+ WHERE id = $1 AND status = 'processing'`,
 		id, message)
 	return err
 }

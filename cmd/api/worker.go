@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -85,7 +84,27 @@ func (app *application) processNextImageJob(ctx context.Context) error {
 
 	// 3. Mark job complete in PostgreSQL
 	if err := app.completeJob(ctx, job, variants); err != nil {
-		app.logger.Error("failed to mark job completed", "error", err, "job_id", job.PublicID)
+		app.logger.Error(
+			"failed to save completed job",
+			"error", err,
+			"job_id", job.PublicID,
+		)
+
+		// Do not overwrite a completion that may already have committed.
+		if errors.Is(err, data.ErrVariantCommitUncertain) {
+			return err
+		}
+
+		failErr := app.models.Jobs.MarkFailed(
+			ctx, job.ID, "Failed to save generated image details",
+		)
+		if failErr != nil {
+			return fmt.Errorf(
+				"completion failed: %v; recording failure also failed: %w",
+				err, failErr,
+			)
+		}
+
 		return err
 	}
 
@@ -226,33 +245,40 @@ func generateVariants(img *data.Image, srcImg image.Image, format string) ([]dat
 		} else {
 			err = jpeg.Encode(outFile, resized, &jpeg.Options{Quality: 85})
 		}
-		outFile.Close()
+		closeErr := outFile.Close()
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode variant %s: %w", plan.name, err)
 		}
+		if closeErr != nil {
+			return nil, fmt.Errorf("failed to close variant %s: %w", plan.name, closeErr)
+		}
+
+		fileInfo, err := os.Stat(varPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect variant %s: %w", plan.name, err)
+		}
+		if fileInfo.Size() <= 0 {
+			return nil, fmt.Errorf("generated variant %s is empty", plan.name)
+		}
 
 		variants = append(variants, data.Variant{
-			Name:   plan.name,
-			Width:  plan.width,
-			Height: plan.height,
-			URL:    fmt.Sprintf("/v1/images/%s/variants/%s", img.ID, plan.name),
+			ImageID:        img.ID,
+			Name:           plan.name,
+			StoredFilename: varFileName,
+			Width:          resized.Bounds().Dx(),
+			Height:         resized.Bounds().Dy(),
+			Size:           fileInfo.Size(),
+			URL:            fmt.Sprintf("/v1/images/%s/variants/%s", img.ID, plan.name),
 		})
 	}
 
 	return variants, nil
 }
 
-// completeJob encodes variant results into JSON and marks the database record as completed.
+// completeJob saves all variant records and the completed state together.
 func (app *application) completeJob(ctx context.Context, job *data.Job, variants []data.Variant) error {
-	resultBytes, err := json.Marshal(struct {
-		Variants []data.Variant `json:"variants"`
-	}{Variants: variants})
-	if err != nil {
-		return app.models.Jobs.MarkFailed(ctx, job.ID, "Failed to serialize variant metadata")
-	}
-
-	return app.models.Jobs.MarkCompleted(ctx, job.ID, resultBytes)
+	return app.models.Jobs.CompleteWithVariants(ctx, job.ID, variants)
 }
 
 // resizeImage scales an image to width x height using bilinear interpolation.

@@ -69,10 +69,38 @@ func TestJobTimestampsIntegration(t *testing.T) {
 					ctx, job.ID, "Test processing failure",
 				)
 			} else {
-				// Image generation is outside this focused test.
-				err = models.Jobs.MarkCompleted(
-					ctx, job.ID, []byte(`{"variants":[]}`),
-				)
+				// These example records test timestamps, not image generation.
+				variants := []data.Variant{
+					{
+						ImageID:        img.ID,
+						Name:           "thumbnail",
+						StoredFilename: "thumbnail.png",
+						Width:          150,
+						Height:         150,
+						Size:           100,
+						URL:            "/v1/images/" + img.ID + "/variants/thumbnail",
+					},
+					{
+						ImageID:        img.ID,
+						Name:           "preview",
+						StoredFilename: "preview.png",
+						Width:          800,
+						Height:         600,
+						Size:           200,
+						URL:            "/v1/images/" + img.ID + "/variants/preview",
+					},
+					{
+						ImageID:        img.ID,
+						Name:           "display",
+						StoredFilename: "display.png",
+						Width:          1200,
+						Height:         900,
+						Size:           300,
+						URL:            "/v1/images/" + img.ID + "/variants/display",
+					},
+				}
+
+				err = models.Jobs.CompleteWithVariants(ctx, job.ID, variants)
 			}
 			if err != nil {
 				t.Fatal(err)
