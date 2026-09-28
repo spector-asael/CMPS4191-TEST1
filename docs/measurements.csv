@@ -1,0 +1,7 @@
+scenario,run,job_id,status,acknowledgement_ms,queue_wait_ms,processing_ms,job_duration_ms,polling_count,detection_delay_ms
+single,1,62f2f8f0-6883-461f-adc6-2ce2860401dd,completed,214.80000000447035,198,7779,7977,8,87
+burst,1,5e3deaf6-9551-4438-ba9f-4ba0746fe1b1,completed,221,219,7770,7989,8,68
+burst,2,10eb6bd9-5aa7-4568-88e6-1e9bb08510b1,completed,228.20000000298023,31216,7739,38955,39,304
+burst,3,72423d30-29b7-44e8-854a-3c8cbe760517,completed,220.60000000149012,15735,7759,23494,24,670
+burst,4,13fe49e5-3955-4ec2-bdfe-be5edba7c1c6,completed,218.5,7994,7738,15732,16,386
+burst,5,bd338d1c-75f6-4c87-9a6d-c125fddf2911,completed,223.19999999552965,23494,7720,31214,32,1002
