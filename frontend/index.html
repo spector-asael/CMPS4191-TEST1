@@ -30,17 +30,26 @@
         <div class="grid-card upload-card">
           <h3>Upload image</h3>
 
-          <div class="preview-box flex-container">
-            <img id="preview-img" src="" alt="Preview" class="hidden" />
-            <div class="file-info flex-container">
-              <input
-                type="file"
-                id="file-input"
-                accept="image/jpeg, image/png"
-                hidden
-              />
+          <div class="preview-box">
+            <img
+              id="preview-img"
+              src=""
+              alt="Selected image preview"
+              class="hidden"
+            />
+
+            <div class="preview-empty">
+              <strong>Your image goes here</strong>
+              <span>Choose a JPEG or PNG, up to 10 MB</span>
             </div>
           </div>
+
+          <input
+            type="file"
+            id="file-input"
+            accept="image/jpeg, image/png"
+            hidden
+          />
           <div id="options">
             <div class="file-info flex-container">
               <span id="file-name">No file selected</span>
@@ -55,66 +64,82 @@
         </div>
 
         <!-- TOP RIGHT CARD: Job Details & Timeline (Spans 3 Columns, Rows 1-2)    -->
-        <div class="grid-card job-card">
-          <div class="card-header flex-container">
+        <div class="grid-card job-card" data-status="idle">
+          <div class="card-header">
             <div>
-              <h3>Processing job</h3>
-              <span class="label">Job ID</span>
-              <h4 id="job-id">#--</h4>
+              <span class="job-eyebrow">PROCESSING ACTIVITY</span>
+              <h3>From original to ready.</h3>
             </div>
+
             <span id="job-status" class="badge">No active job</span>
           </div>
 
-          <div aria-live="polite">
-            <p id="polling-indicator" class="hidden">
-              Checking status automatically<br />
-              <small>Every 1 second</small>
-            </p>
+          <div class="job-summary" aria-live="polite">
+            <span
+              id="job-summary-icon"
+              class="job-summary-icon"
+              aria-hidden="true"
+            >
+              ○
+            </span>
 
-            <p id="job-work-text"></p>
+            <div>
+              <p id="job-work-text">Ready when you are.</p>
+              <p id="job-summary-detail">
+                Choose an image, then select Process image.
+              </p>
+            </div>
           </div>
 
-          <ul class="timeline flex-container">
-            <li id="step-upload" class="step-item flex-container">
-              <span class="step-icon">✓</span>
+          <p id="polling-indicator" class="hidden">
+            Checking status automatically<br />
+            <small>Every 1 second</small>
+          </p>
+
+          <ul class="timeline">
+            <li id="step-upload" class="step-item">
+              <span class="step-icon" aria-hidden="true">○</span>
               <div>
-                <strong>Upload accepted</strong
-                ><small id="time-upload">--</small>
+                <strong>Upload accepted</strong>
+                <small id="time-upload">--</small>
               </div>
             </li>
-            <li id="step-stored" class="step-item flex-container">
-              <span class="step-icon">✓</span>
+
+            <li id="step-stored" class="step-item">
+              <span class="step-icon" aria-hidden="true">○</span>
               <div>
-                <strong>Original stored</strong
-                ><small id="time-stored">--</small>
+                <strong>Original stored</strong>
+                <small id="time-stored">--</small>
               </div>
             </li>
-            <li id="step-variants" class="step-item flex-container">
-              <span class="step-icon">⚙</span>
+
+            <li id="step-variants" class="step-item">
+              <span class="step-icon" aria-hidden="true">○</span>
               <div>
-                <strong>Generating variants</strong
-                ><small id="time-variants">--</small>
+                <strong>Generating variants</strong>
+                <small id="time-variants">--</small>
               </div>
             </li>
-            <li id="step-complete" class="step-item flex-container">
-              <span class="step-icon">○</span>
+
+            <li id="step-complete" class="step-item">
+              <span class="step-icon" aria-hidden="true">○</span>
               <div>
-                <strong id="label-complete">Complete</strong
-                ><small id="time-complete">--</small>
+                <strong id="label-complete">Complete</strong>
+                <small id="time-complete">--</small>
               </div>
             </li>
           </ul>
 
           <div id="job-error" class="error-banner hidden"></div>
 
-          <!-- Retry Container for Observation Errors    -->
-          <div
-            id="try-again-container"
-            class="flex-container"
-            style="display: none"
-          >
+          <div id="try-again-container" style="display: none">
             <span>Unable to check status. The job may still be running.</span>
             <button id="try-again-btn" class="btn-secondary">Try again</button>
+          </div>
+
+          <div class="job-reference">
+            <span class="label">Job reference</span>
+            <h4 id="job-id">#--</h4>
           </div>
         </div>
 

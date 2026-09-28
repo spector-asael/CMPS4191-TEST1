@@ -59,20 +59,61 @@ emitter.on("stateChanged", (state) => {
   pollingIndicator.classList.toggle("hidden", !isPolling);
 
   // Explain what is happening to the current job.
-  if (state.observationError) {
-    jobWorkText.textContent =
-      "Status checks paused. The job may still be running.";
-  } else if (state.activeJob?.status === "queued") {
-    jobWorkText.textContent = "Waiting for processing to start.";
-  } else if (state.activeJob?.status === "processing") {
-    jobWorkText.textContent = "Generating image variants.";
-  } else if (state.activeJob?.status === "completed") {
-    jobWorkText.textContent = "Your images are ready below.";
-  } else if (state.activeJob?.status === "failed") {
-    jobWorkText.textContent = "Image processing failed. See the error below.";
-  } else {
-    jobWorkText.textContent = "";
-  }
+  // Give the processing card a clear summary for each visible state.
+  const jobCard = document.querySelector(".job-card");
+  const summaryIcon = document.getElementById("job-summary-icon");
+  const summaryDetail = document.getElementById("job-summary-detail");
+
+  const summaries = {
+    idle: {
+      title: "Ready when you are.",
+      detail: "Choose an image, then select Process image.",
+      icon: "○",
+    },
+    uploading: {
+      title: "Sending your original.",
+      detail: "Waiting for the server to accept your image.",
+      icon: "↑",
+    },
+    queued: {
+      title: "Your image is in line.",
+      detail: "The original is stored. Processing will begin shortly.",
+      icon: "◷",
+    },
+    processing: {
+      title: "Creating your image set.",
+      detail: "Preparing thumbnail, preview, and display versions.",
+      icon: "◈",
+    },
+    completed: {
+      title: "Your images are ready.",
+      detail: "All three versions are available in the results below.",
+      icon: "✓",
+    },
+    failed: {
+      title: "Processing couldn't finish.",
+      detail: "See the error below for more information.",
+      icon: "!",
+    },
+    observation: {
+      title: "Status checking paused.",
+      detail: "Your job may still be running. Try again to reconnect.",
+      icon: "↻",
+    },
+  };
+
+  const displayState = state.isSubmitting
+    ? "uploading"
+    : state.observationError
+      ? "observation"
+      : state.activeJob?.status || "idle";
+
+  const summary = summaries[displayState] || summaries.idle;
+
+  jobCard.dataset.status = displayState;
+  jobWorkText.textContent = summary.title;
+  summaryDetail.textContent = summary.detail;
+  summaryIcon.textContent = summary.icon;
 
   processBtn.disabled =
     !state.selectedFile || state.isSubmitting || isJobActive;
@@ -175,8 +216,8 @@ emitter.on("stateChanged", (state) => {
 
     // Reset timeline step icons and classes
     [stepUpload, stepStored, stepVariants, stepComplete].forEach((el) => {
-      el.className = "step-item flex-container";
-    });
+  el.querySelector(".step-icon").textContent = "○";
+});
     stepUpload.querySelector(".step-icon").textContent = "✓";
     stepStored.querySelector(".step-icon").textContent = "✓";
     stepVariants.querySelector(".step-icon").textContent = "⚙";
