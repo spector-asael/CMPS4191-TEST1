@@ -130,9 +130,15 @@ emitter.on("stateChanged", (state) => {
   chooseImageBtn.disabled = state.isSubmitting;
   fileInput.disabled = state.isSubmitting;
   processBtn.disabled =
-    !state.selectedFile || state.isSubmitting || isJobActive;
+    !state.selectedFile ||
+    state.isSubmitting ||
+    state.isValidating ||
+    isJobActive;
+
   if (state.isSubmitting) {
     processBtn.textContent = "Uploading...";
+  } else if (state.isValidating) {
+    processBtn.textContent = "Checking image...";
   } else if (isJobActive) {
     processBtn.textContent = "Processing...";
   } else {
@@ -317,4 +323,3 @@ emitter.on("stateChanged", (state) => {
   `;
   }
 });
-

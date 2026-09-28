@@ -12,61 +12,103 @@ window.addEventListener("beforeunload", () => {
   stopPolling();
 });
 
-// Preview Image Selection (UI-05, UI-06)
-fileInput.addEventListener("change", (e) => {
-  if (getState().isSubmitting) return;
+  // Track selections so an older image check cannot replace a newer one.
+  let selectionVersion = 0;
 
-  const file = e.target.files[0];
-  if (!file) return;
+  // Preview Image Selection (UI-05, UI-06)
+  fileInput.addEventListener("change", async (e) => {
+    if (getState().isSubmitting) return;
 
-  const maxImageSize = 10 * 1024 * 1024;
-  const allowedTypes = ["image/jpeg", "image/png"];
+    const file = e.target.files[0];
+    if (!file) return;
 
-  let error = null;
+    const thisSelection = ++selectionVersion;
+    const maxImageSize = 10 * 1024 * 1024;
+    const allowedTypes = ["image/jpeg", "image/png"];
 
-  if (file.size === 0) {
-    error = "This file is empty. Choose a JPEG or PNG image.";
-  } else if (!allowedTypes.includes(file.type)) {
-    error = "Choose a JPEG or PNG image.";
-  } else if (file.size > maxImageSize) {
-    error = "This image exceeds the 10 MB limit. Choose a smaller image.";
-  }
+    let error = null;
 
-  if (error) {
-    fileInput.value = "";
+    if (file.size === 0) {
+      error = "This file is empty. Choose a JPEG or PNG image.";
+    } else if (!allowedTypes.includes(file.type)) {
+      error = "Choose a JPEG or PNG image.";
+    } else if (file.size > maxImageSize) {
+      error = "This image exceeds the 10 MB limit. Choose a smaller image.";
+    }
+
+    if (error) {
+      fileInput.value = "";
+      setState({
+        selectedFile: null,
+        isValidating: false,
+        uploadError: error,
+      });
+      return;
+    }
 
     setState({
       selectedFile: null,
-      uploadError: error,
+      isValidating: true,
+      uploadError: null,
     });
 
-    // A rejected selection must not interrupt an existing job.
-    return;
-  }
+    let checkUrl = null;
 
-  // A valid new selection replaces the previous observation.
-  stopPolling();
+    try {
+      checkUrl = URL.createObjectURL(file);
 
-  setState({
-    selectedFile: file,
-    uploadError: null,
-    activeJob: null,
-    variants: [],
-    observationError: false,
-    metrics: {
-      requestStart: null,
-      ackLatency: null,
-    },
+      const imageCheck = new Image();
+      imageCheck.src = checkUrl;
+      await imageCheck.decode();
+    } catch {
+      // Ignore a result belonging to an older selection.
+      if (thisSelection !== selectionVersion) return;
+
+      fileInput.value = "";
+      setState({
+        selectedFile: null,
+        isValidating: false,
+        uploadError:
+          "This image could not be read. It may be damaged. Choose another JPEG or PNG.",
+      });
+      return;
+    } finally {
+      if (checkUrl !== null) {
+        URL.revokeObjectURL(checkUrl);
+      }
+    }
+
+    if (thisSelection !== selectionVersion) return;
+
+    // Only a readable new selection replaces the previous observation.
+    stopPolling();
+
+    setState({
+      selectedFile: file,
+      isValidating: false,
+      uploadError: null,
+      activeJob: null,
+      variants: [],
+      observationError: false,
+      metrics: {
+        requestStart: null,
+        ackLatency: null,
+      },
+    });
   });
-});
 
 // Primary Upload Submission Handler (SUB-01, SUB-02)
 processBtn.addEventListener("click", async () => {
-  const { isSubmitting, selectedFile, activeJob } = getState();
+  const {
+  isSubmitting,
+  isValidating,
+  selectedFile,
+  activeJob,
+} = getState();
   const isJobActive =
     activeJob &&
     (activeJob.status === "queued" || activeJob.status === "processing");
-  if (isSubmitting || !selectedFile || isJobActive) return;
+  if (isSubmitting || isValidating || !selectedFile || isJobActive) return;
 
   // Clean up any stale polling before initiating a new job
   stopPolling();
