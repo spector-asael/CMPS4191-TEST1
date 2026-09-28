@@ -234,7 +234,7 @@ func (app *application) getJobHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) getVariantHandler(w http.ResponseWriter, r *http.Request) {
-	imageIDStr := r.PathValue("id")
+	imageID := r.PathValue("id")
 	variantName := r.PathValue("name")
 
 	switch variantName {
@@ -244,7 +244,9 @@ func (app *application) getVariantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	image, err := app.models.Images.Get(&imageIDStr)
+	variant, mediaType, err := app.models.Images.GetCompletedVariant(
+		r.Context(), imageID, variantName,
+	)
 	if err != nil {
 		if errors.Is(err, data.ErrRecordNotFound) {
 			app.notFoundResponse(w, r)
@@ -254,20 +256,41 @@ func (app *application) getVariantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	ext := ".jpg"
-	if image.MediaType == "image/png" {
-		ext = ".png"
+	// Stored filenames must be simple filenames, not directory paths.
+	filename := variant.StoredFilename
+	if filename == "" || filename == "." || filename == ".." ||
+		filepath.Base(filename) != filename {
+		app.serverErrorResponse(
+			w, r, fmt.Errorf("invalid stored variant filename"),
+		)
+		return
 	}
 
-	// Match the new file naming pattern: {image_id}-{variant_name}.{ext}
-	variantFileName := fmt.Sprintf("%s-%s%s", image.ID, variantName, ext)
-	variantPath := filepath.Join("./uploads", image.ID, "variants", variantFileName)
+	variantPath := filepath.Join(
+		"./uploads", variant.ImageID, "variants", filename,
+	)
 
-	if _, err := os.Stat(variantPath); os.IsNotExist(err) {
+	file, err := os.Open(variantPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			app.notFoundResponse(w, r)
+			return
+		}
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	if !info.Mode().IsRegular() {
 		app.notFoundResponse(w, r)
 		return
 	}
 
-	w.Header().Set("Content-Type", image.MediaType)
-	http.ServeFile(w, r, variantPath)
+	w.Header().Set("Content-Type", mediaType)
+	http.ServeContent(w, r, filename, info.ModTime(), file)
 }

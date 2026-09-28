@@ -2,9 +2,11 @@ package data
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/lib/pq"
 	"time"
 )
 
@@ -123,4 +125,61 @@ func (m JobModel) CompleteWithVariants(
 	}
 
 	return nil
+}
+
+// GetCompletedVariant returns a known variant only when its image
+// has a successfully completed processing job.
+func (m ImageModel) GetCompletedVariant(
+	parent context.Context,
+	imageID string,
+	name string,
+) (*Variant, string, error) {
+	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
+	defer cancel()
+
+	query := `
+		SELECT v.id, v.image_id, v.name, v.stored_filename,
+		       v.width, v.height, v.size, v.created_at,
+		       i.media_type
+		FROM image_variants v
+		JOIN images i ON i.id = v.image_id
+		WHERE v.image_id = $1
+		  AND v.name = $2
+		  AND EXISTS (
+		      SELECT 1
+		      FROM jobs j
+		      WHERE j.image_id = v.image_id
+		        AND j.job_type = 'image_processing'
+		        AND j.status = 'completed'
+		  )`
+
+	var variant Variant
+	var mediaType string
+
+	err := m.DB.QueryRowContext(ctx, query, imageID, name).Scan(
+		&variant.ID,
+		&variant.ImageID,
+		&variant.Name,
+		&variant.StoredFilename,
+		&variant.Width,
+		&variant.Height,
+		&variant.Size,
+		&variant.CreatedAt,
+		&mediaType,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, "", ErrRecordNotFound
+		}
+
+		// An incorrectly formatted UUID cannot identify an image.
+		var pgErr *pq.Error
+		if errors.As(err, &pgErr) && pgErr.Code == "22P02" {
+			return nil, "", ErrRecordNotFound
+		}
+
+		return nil, "", err
+	}
+
+	return &variant, mediaType, nil
 }
