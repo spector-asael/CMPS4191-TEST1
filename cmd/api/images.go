@@ -113,41 +113,80 @@ func (app *application) uploadImageHandler(w http.ResponseWriter, r *http.Reques
 		MediaType:        mimeType,
 		Size:             header.Size,
 	}
-	if err := app.models.Images.Insert(image); err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
+	// Track only a directory successfully created by this request.
+	var createdDir string
+	keepOriginal := false
+
+	defer func() {
+		if createdDir == "" || keepOriginal {
+			return
+		}
+
+		if err := os.RemoveAll(createdDir); err != nil {
+			app.logger.Error(
+				"failed to clean up rejected upload",
+				"image_id", image.ID,
+				"error", err,
+			)
+		}
+	}()
+
+	saveOriginal := func() error {
+		if err := os.MkdirAll("./uploads", 0755); err != nil {
+			return err
+		}
+
+		imgDir := filepath.Join("./uploads", image.ID)
+
+		// Do not reuse an existing image directory.
+		if err := os.Mkdir(imgDir, 0755); err != nil {
+			return err
+		}
+		createdDir = imgDir
+
+		dstPath := filepath.Join(imgDir, storedFilename)
+		dst, err := os.OpenFile(
+			dstPath,
+			os.O_WRONLY|os.O_CREATE|os.O_EXCL,
+			0644,
+		)
+		if err != nil {
+			return err
+		}
+
+		written, copyErr := io.Copy(dst, file)
+		closeErr := dst.Close()
+
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		if written != header.Size {
+			return fmt.Errorf("stored image size does not match upload")
+		}
+
+		return nil
 	}
 
-	// 5. Create dedicated directory on disk: ./uploads/{image_id}
-	imgDir := filepath.Join("./uploads", image.ID)
-	if err := os.MkdirAll(imgDir, 0755); err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-
-	// 6. Save original file inside ./uploads/{image_id}/{storedFilename}
-	dstPath := filepath.Join(imgDir, storedFilename)
-	dst, err := os.Create(dstPath)
+	job, err := app.models.Images.AcceptUpload(
+		r.Context(), image, saveOriginal,
+	)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-	defer dst.Close()
+		// If commit confirmation was lost, preserve the input:
+		// the database might already have accepted its job.
+		if errors.Is(err, data.ErrUploadCommitUncertain) {
+			keepOriginal = true
+		}
 
-	if _, err := io.Copy(dst, file); err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
-	// 7. Queue processing job in database
-	job := &data.Job{
-		ImageID: &image.ID,
-		JobType: "image_processing",
-	}
-	if err := app.models.Jobs.Insert(job); err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
+	// Acceptance succeeded. Keep the original even if sending
+	// the response fails or the browser disconnects.
+	keepOriginal = true
 
 	// 8. Send 202 Accepted response with polling location header
 	statusURL := fmt.Sprintf("/v1/jobs/%s", job.PublicID)
