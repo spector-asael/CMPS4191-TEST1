@@ -142,9 +142,7 @@ emitter.on("stateChanged", (state) => {
       stepComplete.className = "step-item flex-container failed";
       stepComplete.querySelector(".step-icon").textContent = "✕";
       if (labelComplete) labelComplete.textContent = "Failed";
-      timeComplete.textContent = fmt(
-        state.activeJob.completed_at || state.activeJob.started_at,
-      );
+      timeComplete.textContent = fmt(state.activeJob.failed_at);
       timeComplete.style.color = "var(--status-failed-text)";
 
       // Display clear, prominent processing error banner

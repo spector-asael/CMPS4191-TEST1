@@ -31,6 +31,7 @@ type Job struct {
 	QueuedAt     time.Time       `json:"queued_at"` // Spec requires queued_at
 	StartedAt    *time.Time      `json:"started_at,omitempty"`
 	CompletedAt  *time.Time      `json:"completed_at,omitempty"`
+	FailedAt     *time.Time      `json:"failed_at,omitempty"`
 }
 
 type JobModel struct {
@@ -102,7 +103,7 @@ func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 		SELECT id, public_id, image_id, job_type, status,
 		       COALESCE(payload, 'null'::jsonb),
 		       COALESCE(result, 'null'::jsonb),
-		       error_message, started_at, completed_at, created_at
+		       error_message, started_at, completed_at, failed_at, created_at
 		FROM jobs WHERE public_id = $1`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -111,7 +112,8 @@ func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 	var job Job
 	err := m.DB.QueryRowContext(ctx, query, publicID).Scan(
 		&job.ID, &job.PublicID, &job.ImageID, &job.JobType, &job.Status,
-		&job.Payload, &job.Result, &job.ErrorMessage, &job.StartedAt, &job.CompletedAt, &job.QueuedAt,
+		&job.Payload, &job.Result, &job.ErrorMessage,
+		&job.StartedAt, &job.CompletedAt, &job.FailedAt, &job.QueuedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -142,7 +144,12 @@ func (m JobModel) MarkCompleted(ctx context.Context, id string, result []byte) e
 
 func (m JobModel) MarkFailed(ctx context.Context, id, message string) error {
 	_, err := m.DB.ExecContext(ctx,
-		`UPDATE jobs SET status = 'failed', error_message = $2, completed_at = now() WHERE id = $1`,
+		`UPDATE jobs
+ SET status = 'failed',
+     error_message = $2,
+     failed_at = now(),
+     completed_at = NULL
+ WHERE id = $1`,
 		id, message)
 	return err
 }

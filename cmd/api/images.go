@@ -224,6 +224,7 @@ func (app *application) getJobHandler(w http.ResponseWriter, r *http.Request) {
 		"queued_at":     job.QueuedAt,
 		"started_at":    job.StartedAt,
 		"completed_at":  job.CompletedAt,
+		"failed_at":     job.FailedAt,
 		"error_message": job.ErrorMessage,
 	}
 
