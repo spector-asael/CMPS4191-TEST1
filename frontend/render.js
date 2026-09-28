@@ -1,5 +1,7 @@
 import { emitter } from "./modules/event-emitter.js";
 import { API_BASE_URL } from "./modules/data-service.js";
+let previewFile = null;
+let previewUrl = null;
 
 emitter.on("stateChanged", (state) => {
   // 1. Target elements from index.html
@@ -16,6 +18,8 @@ emitter.on("stateChanged", (state) => {
   const jobError = document.getElementById("job-error");
   const pollingIndicator = document.getElementById("polling-indicator");
   const jobWorkText = document.getElementById("job-work-text");
+  const chooseImageBtn = document.getElementById("choose-image-btn");
+  const fileInput = document.getElementById("file-input");
 
   // Render Immediate Upload Error Banner (VAL-05)
   if (state.uploadError) {
@@ -27,23 +31,31 @@ emitter.on("stateChanged", (state) => {
   }
 
   // 2. Render File Selection & Preview (UI-05)
+  // 2. Render File Selection & Preview (UI-05)
+  if (state.selectedFile !== previewFile) {
+    if (previewUrl !== null) {
+      URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+    }
+
+    previewFile = state.selectedFile;
+
+    if (previewFile) {
+      previewUrl = URL.createObjectURL(previewFile);
+      previewImg.src = previewUrl;
+      previewImg.classList.remove("hidden");
+    } else {
+      previewImg.removeAttribute("src");
+      previewImg.classList.add("hidden");
+    }
+  }
+
   if (state.selectedFile) {
     fileName.textContent = state.selectedFile.name;
     fileMeta.textContent = `${(state.selectedFile.size / (1024 * 1024)).toFixed(2)} MB • ${state.selectedFile.type}`;
-
-    if (
-      !previewImg.src ||
-      previewImg.dataset.file !== state.selectedFile.name
-    ) {
-      previewImg.src = URL.createObjectURL(state.selectedFile);
-      previewImg.dataset.file = state.selectedFile.name;
-      previewImg.classList.remove("hidden");
-    }
   } else {
     fileName.textContent = "No file selected";
     fileMeta.textContent = "";
-    previewImg.src = "";
-    previewImg.classList.add("hidden");
   }
 
   // 3. Render Button State (UI-02, UI-08)
@@ -115,6 +127,8 @@ emitter.on("stateChanged", (state) => {
   summaryDetail.textContent = summary.detail;
   summaryIcon.textContent = summary.icon;
 
+  chooseImageBtn.disabled = state.isSubmitting;
+  fileInput.disabled = state.isSubmitting;
   processBtn.disabled =
     !state.selectedFile || state.isSubmitting || isJobActive;
   if (state.isSubmitting) {
@@ -215,13 +229,11 @@ emitter.on("stateChanged", (state) => {
     if (jobError) jobError.classList.add("hidden");
 
     // Reset timeline step icons and classes
+    // Reset timeline step icons and classes.
     [stepUpload, stepStored, stepVariants, stepComplete].forEach((el) => {
-  el.querySelector(".step-icon").textContent = "○";
-});
-    stepUpload.querySelector(".step-icon").textContent = "✓";
-    stepStored.querySelector(".step-icon").textContent = "✓";
-    stepVariants.querySelector(".step-icon").textContent = "⚙";
-    stepComplete.querySelector(".step-icon").textContent = "○";
+      el.className = "step-item flex-container";
+      el.querySelector(".step-icon").textContent = "○";
+    });
   }
 
   // 5. Render Observation Error Prompt (POLL-09)
@@ -305,3 +317,4 @@ emitter.on("stateChanged", (state) => {
   `;
   }
 });
+

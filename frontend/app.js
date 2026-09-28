@@ -3,6 +3,7 @@ import { DataService } from "./modules/data-service.js";
 
 // Elements
 const fileInput = document.getElementById("file-input");
+const chooseImageBtn = document.getElementById("choose-image-btn");
 const processBtn = document.getElementById("process-btn");
 const tryAgainBtn = document.getElementById("try-again-btn");
 
@@ -13,25 +14,58 @@ window.addEventListener("beforeunload", () => {
 
 // Preview Image Selection (UI-05, UI-06)
 fileInput.addEventListener("change", (e) => {
+  if (getState().isSubmitting) return;
+
   const file = e.target.files[0];
   if (!file) return;
 
-  // Cancel active observation if switching/selecting a new file (POLL-06)
+  const maxImageSize = 10 * 1024 * 1024;
+  const allowedTypes = ["image/jpeg", "image/png"];
+
+  let error = null;
+
+  if (file.size === 0) {
+    error = "This file is empty. Choose a JPEG or PNG image.";
+  } else if (!allowedTypes.includes(file.type)) {
+    error = "Choose a JPEG or PNG image.";
+  } else if (file.size > maxImageSize) {
+    error = "This image exceeds the 10 MB limit. Choose a smaller image.";
+  }
+
+  if (error) {
+    fileInput.value = "";
+
+    setState({
+      selectedFile: null,
+      uploadError: error,
+    });
+
+    // A rejected selection must not interrupt an existing job.
+    return;
+  }
+
+  // A valid new selection replaces the previous observation.
   stopPolling();
 
   setState({
     selectedFile: file,
-    uploadError: null, // Clear past upload errors on new selection
+    uploadError: null,
     activeJob: null,
     variants: [],
     observationError: false,
+    metrics: {
+      requestStart: null,
+      ackLatency: null,
+    },
   });
 });
 
 // Primary Upload Submission Handler (SUB-01, SUB-02)
 processBtn.addEventListener("click", async () => {
   const { isSubmitting, selectedFile, activeJob } = getState();
-  const isJobActive = activeJob && (activeJob.status === "queued" || activeJob.status === "processing");
+  const isJobActive =
+    activeJob &&
+    (activeJob.status === "queued" || activeJob.status === "processing");
   if (isSubmitting || !selectedFile || isJobActive) return;
 
   // Clean up any stale polling before initiating a new job
@@ -57,12 +91,20 @@ processBtn.addEventListener("click", async () => {
   }
 });
 
+chooseImageBtn.addEventListener("click", () => {
+  if (getState().isSubmitting) return;
+
+  // Allow selecting the same file again.
+  fileInput.value = "";
+  fileInput.click();
+});
+
 // Polling Control Loop (POLL-02 to POLL-10)
 function startPolling(statusUrl) {
   stopPolling();
 
   const controller = new AbortController();
-  
+
   const timer = setTimeout(() => {
     poll(statusUrl, controller);
   }, 1000);
